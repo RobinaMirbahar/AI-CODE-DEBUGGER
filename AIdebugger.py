@@ -1,48 +1,61 @@
 import google.generativeai as genai
 import streamlit as st
+from guesslang import Guess
 
 # Configure Gemini API
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])  # Ensure API key is set in Streamlit secrets
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])  # Replace with your Gemini API key
 
-st.title("AI Code Corrector & Optimizer")
-st.write("Analyze, correct, and optimize code using Gemini AI.")
+def detect_language(code_snippet):
+    """Automatically detect programming language."""
+    guess = Guess()
+    return guess.language_name(code_snippet)
 
-# User input: Code snippet & Language
-language = st.selectbox("Select Programming Language", ["python", "javascript", "java", "c++"])
-code_snippet = st.text_area("Enter your code snippet")
-
-# Additional features
-enhancement = st.selectbox("Select Enhancement", ["Code Correction", "Performance Optimization", "Security Analysis"])
-
-def process_code(code_snippet, language, enhancement):
+def correct_code(code_snippet, language):
     """
-    Analyzes and enhances code based on user selection.
+    Analyzes and corrects errors in the provided code snippet using Gemini AI.
+    
+    Args:
+        code_snippet (str): The code snippet to analyze.
+        language (str): The programming language of the snippet.
+
+    Returns:
+        str: The corrected code and explanations.
     """
     prompt = f"""
-    You are an AI-powered code assistant.
-    Analyze the following {language} code and perform the selected enhancement: {enhancement}.
+    You are an AI-powered code correction assistant. 
+    Analyze the following {language} code, detect errors, correct them, and suggest improvements:
 
     ```{language}
     {code_snippet}
     ```
 
     Provide:
-    1. Corrected or optimized code
+    1. Corrected code
     2. Explanation of changes
-    3. Additional improvements if applicable
+    3. Any additional improvements
     """
     
     try:
-        model = genai.GenerativeModel("gemini-2.0-pro-exp")
+        model = genai.GenerativeModel('gemini-2.0-pro-exp')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"Error: {e}"
 
-if st.button("Run AI Analysis"):
-    if code_snippet:
-        result = process_code(code_snippet, language, enhancement)
-        st.subheader("AI Suggested Code:")
-        st.code(result, language)
+# Streamlit UI
+st.title("AI Code Debugger & Improver")
+
+code_snippet = st.text_area("Enter your code:")
+language = st.selectbox("Select Language (Optional)", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go"], index=0)
+
+if st.button("Correct Code"):
+    if not code_snippet.strip():
+        st.error("Please enter some code to analyze.")
     else:
-        st.warning("Please enter a code snippet before running analysis.")
+        if language == "Auto-Detect":
+            detected_lang = detect_language(code_snippet)
+            st.write(f"Detected Language: {detected_lang}")
+            language = detected_lang
+        
+        correction = correct_code(code_snippet, language.lower())
+        st.text_area("Suggested Corrections:", correction, height=300)
