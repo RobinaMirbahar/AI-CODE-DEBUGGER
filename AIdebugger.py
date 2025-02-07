@@ -19,7 +19,7 @@ def correct_code(code_snippet, language="python"):
     3. Any additional improvements
     """
     
-    model = genai.GenerativeModel('gemini-2.0-pro-exp')
+    model = genai.GenerativeModel("gemini-2.0-pro-exp", generation_config={"max_output_tokens": 2048})
     response = model.generate_content(prompt)
     return response.text
 
@@ -30,6 +30,8 @@ language = st.selectbox("Select Language:", ["python", "javascript", "java", "c+
 if st.button("Correct Code"):
     if code:
         corrected_code = correct_code(code, language)
-        st.text_area("Suggested Corrections:", corrected_code, height=200)
+        st.text_area("Suggested Corrections:", corrected_code, height=300)
+        st.markdown(f"### Suggested Fix:\n```{language}\n{corrected_code}\n```")
+
     else:
         st.warning("Please enter some code.")
