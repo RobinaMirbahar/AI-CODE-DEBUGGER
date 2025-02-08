@@ -1,16 +1,38 @@
 import google.generativeai as genai
 import streamlit as st
-import difflib
 import re
 from datetime import datetime
 
 # Configure Gemini API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# --- Fixed Functions ---
+@st.cache_data(show_spinner=False)
+def generate_api_documentation(code_snippet, language):
+    """Generate API documentation from code"""
+    try:
+        prompt = f"""
+        Create comprehensive documentation for this {language} code:
+        ```{language}
+        {code_snippet}
+        ```
+        Include:
+        1. Function/method descriptions
+        2. Parameter explanations
+        3. Return value details
+        4. Usage examples
+        5. Error handling information
+        
+        Format in markdown with code examples
+        """
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"**Documentation Error**: {str(e)}"
+
 @st.cache_data(show_spinner=False)
 def correct_code(code_snippet, language, analysis_type="Full Audit"):
-    """Enhanced error handling and model selection"""
+    """Enhanced code analysis with security scanning"""
     try:
         lang = language.lower() if language != "Auto-Detect" else ""
         code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```\n{code_snippet}\n```"
@@ -45,54 +67,31 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
             - Security enhancements
             """
         
-        model = genai.GenerativeModel('gemini-pro')  # Fixed model name
+        model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(base_prompt)
         return response.text
     except Exception as e:
         return f"**API Error**: {str(e)}"
 
 def parse_response(response_text):
-    """More robust response parsing"""
+    """Robust response parser"""
     sections = {'code': '', 'explanation': '', 'improvements': ''}
     
-    # Improved regex patterns
     code_match = re.search(r'```[^\n]*\n(.*?)```', response_text, re.DOTALL)
     if code_match:
         sections['code'] = code_match.group(1).strip()
     
-    explanation_match = re.search(
-        r'### Error Explanation\s*(.*?)(?:###|\Z)', 
-        response_text, 
-        re.DOTALL | re.IGNORECASE
-    )
+    explanation_match = re.search(r'### Error Explanation\s*(.*?)(?:###|\Z)', response_text, re.DOTALL | re.IGNORECASE)
     if explanation_match:
         sections['explanation'] = explanation_match.group(1).strip()
     
-    improvements_match = re.search(
-        r'### (Optimization Suggestions|Security Findings)\s*(.*?)(?:###|\Z)', 
-        response_text, 
-        re.DOTALL | re.IGNORECASE
-    )
+    improvements_match = re.search(r'### (Optimization Suggestions|Security Findings)\s*(.*?)(?:###|\Z)', response_text, re.DOTALL | re.IGNORECASE)
     if improvements_match:
         sections['improvements'] = improvements_match.group(2).strip()
     
     return sections
 
-def get_extension(language):
-    """Missing helper function added"""
-    extensions = {
-        "Python": "py",
-        "JavaScript": "js",
-        "Java": "java",
-        "C++": "cpp",
-        "C#": "cs",
-        "Go": "go",
-        "Rust": "rs",
-        "TypeScript": "ts"
-    }
-    return extensions.get(language, "txt")
-
-# --- Fixed UI Components ---
+# Streamlit UI Configuration
 st.set_page_config(page_title="AI Code Suite Pro", page_icon="🚀", layout="wide")
 
 # Session State Management
@@ -119,12 +118,6 @@ with col1:
         value=st.session_state.code,
         help="Write or paste your code here"
     )
-    
-    gen_prompt = st.text_area(
-        "💡 Code Generation Prompt", 
-        height=100,
-        placeholder="Describe functionality to generate..."
-    )
 
 with col2:
     lang = st.selectbox(
@@ -135,21 +128,15 @@ with col2:
         "🔍 Analysis Mode", 
         ["Full Audit", "Quick Fix", "Security Review"]
     )
-    template = st.selectbox(
-        "📁 Code Template", 
-        ["None", "Web API", "CLI", "GUI", "Microservice"]
-    )
 
 # Control Panel
-col3, col4, col5 = st.columns(3)
+col3, col4 = st.columns(2)
 with col3:
     analyze_btn = st.button("🔍 Analyze Code", use_container_width=True)
 with col4:
-    gen_btn = st.button("✨ Generate Code", use_container_width=True)
-with col5:
     doc_btn = st.button("📚 Generate Docs", use_container_width=True)
 
-# --- Fixed Analysis Results ---
+# Analysis Functionality
 if analyze_btn:
     if code.strip():
         with st.spinner("🧠 Analyzing code..."):
@@ -160,12 +147,10 @@ if analyze_btn:
             else:
                 sections = parse_response(response)
                 
-                tab1, tab2, tab3 = st.tabs(["🛠 Code", "📖 Explanation", "🔍 Findings"])
+                tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Explanation", "🔍 Findings"])
+                
                 with tab1:
                     st.code(sections['code'], language=lang.lower() if lang != "Auto-Detect" else "")
-                    if st.button("🧪 Generate Tests"):
-                        tests = generate_test_cases(code, lang)
-                        st.code(tests, language='python')
                 
                 with tab2:
                     st.markdown(f"```\n{sections['explanation']}\n```")
@@ -181,17 +166,29 @@ if analyze_btn:
     else:
         st.error("⚠️ Please input code to analyze")
 
-# ... (rest of the code remains similar with proper error handling)
+# Documentation Generation
+if doc_btn:
+    if code.strip():
+        with st.spinner("📝 Generating documentation..."):
+            docs = generate_api_documentation(code, lang)
+            
+            if not docs.startswith("**"):
+                st.markdown("### Generated Documentation")
+                st.markdown(docs)
+                st.download_button(
+                    "📥 Download Documentation",
+                    data=docs,
+                    file_name=f"documentation.md",
+                    mime="text/markdown"
+                )
+            else:
+                st.error(docs)
+    else:
+        st.error("⚠️ Please input code to generate documentation")
 
-# Fixed Chat Assistant
+# History Sidebar
 with st.sidebar:
-    st.subheader("💬 Code Chat")
-    user_question = st.text_input("Ask about the code:")
-    if user_question and code.strip():
-        response = code_chat_assistant(code, user_question)
-        st.markdown(f"**AI:**\n{response}")
-    
-    st.subheader("📚 History")
+    st.subheader("📚 Analysis History")
     for idx, item in enumerate(st.session_state.history[-3:]):
         with st.expander(f"Analysis {idx+1} - {item['timestamp'].strftime('%H:%M')}"):
             st.code(item['code'][:200] + "...")
