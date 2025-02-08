@@ -152,25 +152,3 @@ if st.button("✨ Generate Code", use_container_width=True):
 st.markdown("---")
 st.markdown("🔒 **Security Note:** Code is processed securely through Google's API and not stored.")
 
-def code_chat_assistant(code_snippet, question):
-    """Real-time Q&A about the codebase"""
-    prompt = f"""
-    You're a code tutor analyzing this code:
-    ```python
-    {code_snippet}
-    ```
-    Answer this question: {question}
-    - Explain concepts simply
-    - Suggest alternative approaches
-    - Highlight potential pitfalls
-    """
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(prompt)
-    return response.text
-
-# Add to UI
-if st.sidebar.checkbox("💬 Code Chat Assistant"):
-    user_question = st.text_input("Ask about the code:")
-    if user_question:
-        chat_response = code_chat_assistant(code_snippet, user_question)
-        st.markdown(f"**AI Tutor:**\n{chat_response}")
