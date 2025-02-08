@@ -12,8 +12,7 @@ def correct_code(code_snippet, language):
     """Analyze and correct code using Gemini AI with enhanced error handling."""
     try:
         lang = language.lower() if language != "auto-detect" else ""
-        code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```
-{code_snippet}\n```"
+        code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```\n{code_snippet}\n```"
         
         prompt = f"""
         You are an expert code correction assistant. Analyze, debug, and improve this code:
