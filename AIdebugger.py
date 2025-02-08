@@ -4,62 +4,54 @@ import difflib
 import re
 from datetime import datetime
 
-# Configure Gemini API (Ensure API key is correctly set in secrets)
-try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-except KeyError:
-    st.error("⚠️ API Key not found! Please add your Gemini API Key in Streamlit secrets.")
-    st.stop()
+# Function to configure API securely
+def configure_api():
+    """Safely configures Google Gemini API key from Streamlit secrets."""
+    try:
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    except KeyError:
+        st.error("⚠️ API Key not found! Add it to Streamlit secrets.")
+        st.stop()
 
 @st.cache_data(show_spinner=False)
 def correct_code(code_snippet, language):
     """Analyze and correct code using Gemini AI with enhanced error handling."""
+    configure_api()
+    
+    lang = language.lower() if language != "Auto-Detect" else ""
+    code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```\n{code_snippet}\n```"
+
+    prompt = f"""
+    You are an expert code correction assistant. Analyze, debug, and improve this code:
+
+    {code_block}
+
+    Provide markdown-formatted response with these exact sections:
+    ### Corrected Code
+    ### Error Explanation
+    ### Optimization Suggestions
+    """
+    
     try:
-        lang = language.lower() if language != "Auto-Detect" else ""
-        code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```\n{code_snippet}\n```"
-        
-        prompt = f"""
-        You are an expert code correction assistant. Analyze, debug, and improve this code:
-
-        {code_block}
-
-        Provide markdown-formatted response with these exact sections:
-        ### Corrected Code
-        - Include line numbers in code blocks
-        - Highlight key changes with comments
-        
-        ### Error Explanation
-        - Categorize errors (syntax, logic, performance)
-        - Explain each fix in bullet points
-        
-        ### Optimization Suggestions
-        - Suggest efficiency improvements
-        - Recommend best practices
-        - Propose security enhancements
-        """
-        
         model = genai.GenerativeModel('gemini-2.0-pro-exp')
         response = model.generate_content(prompt)
         return response.text
-    
     except Exception as e:
         return f"**API Error**: {str(e)}"
 
 def parse_response(response_text):
-    """Parse AI response into structured sections"""
+    """Parse AI response into structured sections."""
     sections = {'code': '', 'explanation': '', 'improvements': ''}
 
-    code_match = re.search(r'```[^\n]*\n(.*?)```', response_text, re.DOTALL)
-    if code_match:
-        sections['code'] = code_match.group(1)
+    patterns = {
+        'code': r'```[^\n]*\n(.*?)```',
+        'explanation': r'### Error Explanation(.*?)### Optimization Suggestions',
+        'improvements': r'### Optimization Suggestions(.*?)$'
+    }
 
-    explanation_match = re.search(r'### Error Explanation(.*?)### Optimization Suggestions', response_text, re.DOTALL)
-    if explanation_match:
-        sections['explanation'] = explanation_match.group(1).strip()
-
-    improvements_match = re.search(r'### Optimization Suggestions(.*?)$', response_text, re.DOTALL)
-    if improvements_match:
-        sections['improvements'] = improvements_match.group(1).strip()
+    for key, pattern in patterns.items():
+        match = re.search(pattern, response_text, re.DOTALL | re.MULTILINE)
+        sections[key] = match.group(1).strip() if match else "No details provided."
 
     return sections
 
@@ -91,9 +83,9 @@ col1, col2 = st.columns([3, 1])
 with col1:
     uploaded_file = st.file_uploader("📤 Upload a code file", type=["py", "js", "java", "cpp", "cs", "go", "rs", "ts"])
 
-    if uploaded_file is not None:
+    if uploaded_file:
         try:
-            code = uploaded_file.read().decode("utf-8")  # Read file content
+            code = uploaded_file.read().decode("utf-8")
             st.success(f"✅ File '{uploaded_file.name}' uploaded successfully")
         except Exception as e:
             st.error(f"❌ Error reading file: {str(e)}")
@@ -124,14 +116,11 @@ if st.button("🚀 Analyze Code", use_container_width=True):
                 'timestamp': start_time
             })
         
-        # Error Handling
         if response.startswith("**API Error**"):
             st.error(response)
         else:
-            # Parse response
             sections = parse_response(response)
             
-            # Display Results
             st.success(f"✅ Analysis completed in {process_time:.2f}s")
             tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Explanation", "💎 Optimizations"])
             
