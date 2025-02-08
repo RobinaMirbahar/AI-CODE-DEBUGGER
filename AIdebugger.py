@@ -1,6 +1,5 @@
 import google.generativeai as genai
 import streamlit as st
-import difflib
 import re
 from datetime import datetime
 
@@ -52,7 +51,7 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         response = model.generate_content(base_prompt)
         
         # Ensure response is not empty or malformed
-        if response and hasattr(response, 'text'):
+        if hasattr(response, 'text') and response.text.strip():
             return response.text
         else:
             return "**API Error**: Unexpected response format or empty response."
@@ -93,7 +92,7 @@ def generate_test_cases(code_snippet, language):
         - Mocking
         - Parameterized tests
         """
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.0-pro-exp')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -132,7 +131,7 @@ def code_chat_assistant(code_snippet, question):
         - Give examples
         - Highlight best practices
         """
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.0-pro-exp')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -141,15 +140,22 @@ def code_chat_assistant(code_snippet, question):
 def parse_response(response_text):
     """Parse analysis response"""
     sections = {'code': '', 'explanation': '', 'improvements': ''}
+    
+    # Correcting regex to ensure all code snippets are captured, including language headers
     code_match = re.search(r'```[\w+]*\n(.*?)```', response_text, re.DOTALL)
     if code_match:
         sections['code'] = code_match.group(1)
+    
+    # Error explanation section
     explanation_match = re.search(r'### Error Explanation(.*?)###', response_text, re.DOTALL)
     if explanation_match:
         sections['explanation'] = explanation_match.group(1).strip()
+    
+    # Findings or optimizations section
     improvements_match = re.search(r'### (Optimization Suggestions|Security Findings)(.*?)$', response_text, re.DOTALL)
     if improvements_match:
         sections['improvements'] = improvements_match.group(2).strip()
+    
     return sections
 
 # Streamlit UI Configuration
