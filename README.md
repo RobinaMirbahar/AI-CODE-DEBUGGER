@@ -90,10 +90,8 @@ streamlit run AIdebugger.py
 
 AI Code Debugger Pro, powered by **Google Gemini 2.0 Pro**, is a **game-changer for developers** – offering **instant debugging, deep analysis, and AI-generated solutions** to **save time and improve code quality.** 🚀  
 
----
+
 
 🔗 **Try it now:** [AI Code Debugger Pro](https://aicodedebug.streamlit.app/)  
 
----
 
-Would you like any additional sections or modifications? 😊
