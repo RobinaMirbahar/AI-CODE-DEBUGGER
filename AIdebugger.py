@@ -99,8 +99,14 @@ st.write("Advanced code analysis powered by Google Gemini")
 col1, col2 = st.columns([3, 1])
 with col1:
     uploaded_file = st.file_uploader("📤 Upload code file", type=["py","js","java","cpp","cs","go","rs","ts"])
+    
+    if uploaded_file is not None:
+        file_contents = uploaded_file.read().decode("utf-8")
+        st.session_state['code'] = file_contents  # Store uploaded content
+    
     code = st.text_area("📝 Paste code here:", height=300, value=st.session_state.get('code', ''), help="Supports 10+ programming languages")
     prompt_text = st.text_area("💡 Describe the functionality you want:", height=150, help="AI will generate code based on your description")
+
 with col2:
     lang = st.selectbox("🌐 Language:", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust", "TypeScript"])
     analysis_type = st.radio("🔍 Analysis Type:", ["Full Audit", "Quick Fix", "Security Review"])
