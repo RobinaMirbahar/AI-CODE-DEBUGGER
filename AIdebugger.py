@@ -1,7 +1,6 @@
 import google.generativeai as genai
 import streamlit as st
 import re
-from datetime import datetime
 
 # Configure Gemini API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -50,6 +49,9 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         model = genai.GenerativeModel('gemini-2.0-pro-exp')
         response = model.generate_content(base_prompt)
         
+        # Debugging: Print the raw response
+        print("Raw API Response:", response)
+        
         # Ensure response is not empty or malformed
         if hasattr(response, 'text') and response.text.strip():
             return response.text
@@ -59,86 +61,10 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
     except Exception as e:
         return f"**API Error**: {str(e)}"
 
-def generate_code_from_text(prompt_text, language, template=None):
-    """AI-powered code generation"""
-    try:
-        template_prompt = f" using {template} template" if template else ""
-        prompt = f"""
-        Generate {language} code{template_prompt} for:
-        {prompt_text}
-        
-        Include:
-        1. Production-ready code
-        2. Error handling
-        3. Documentation
-        4. Test hooks
-        """
-        model = genai.GenerativeModel('gemini-2.0-pro-exp')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"**Generation Error**: {str(e)}"
-
-def generate_test_cases(code_snippet, language):
-    """Test case generation"""
-    try:
-        prompt = f"""
-        Create pytest tests for this {language} code:
-        ```{language}
-        {code_snippet}
-        ```
-        Include:
-        - Edge cases
-        - Mocking
-        - Parameterized tests
-        """
-        model = genai.GenerativeModel('gemini-2.0-pro-exp')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"**Test Error**: {str(e)}"
-
-def generate_api_documentation(code_snippet, language):
-    """API documentation generator"""
-    try:
-        prompt = f"""
-        Create OpenAPI documentation for this {language} code:
-        ```{language}
-        {code_snippet}
-        ```
-        Include:
-        - Endpoints
-        - Schemas
-        - Examples
-        - Security schemes
-        """
-        model = genai.GenerativeModel('gemini-2.0-pro-exp')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"**Docs Error**: {str(e)}"
-
-def code_chat_assistant(code_snippet, question):
-    """Code-focused chat AI"""
-    try:
-        prompt = f"""
-        As code tutor, explain:
-        ```python
-        {code_snippet}
-        ```
-        Question: {question}
-        - Simplify concepts
-        - Give examples
-        - Highlight best practices
-        """
-        model = genai.GenerativeModel('gemini-2.0-pro-exp')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"**Chat Error**: {str(e)}"
-
 def parse_response(response_text):
     """Parse analysis response"""
+    print("Response Text:", response_text)  # Debugging: Print the raw response text
+    
     sections = {'code': '', 'explanation': '', 'improvements': ''}
     
     # Correcting regex to ensure all code snippets are captured, including language headers
