@@ -1,168 +1,125 @@
-import google.generativeai as genai
-import streamlit as st
-import re
-from datetime import datetime
-
-# Configure Gemini API
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-# --- Core Functions ---
-def analyze_code(code, language):
-    """Full code analysis with proper parsing"""
+# Add these new functions
+def generate_code_from_text(prompt_text, language, template=None, refinement=None):
+    """Advanced code generation with templates and refinements"""
     try:
+        template_prompt = ""
+        if template and template != "Custom":
+            template_prompt = f" using the {template} template structure"
+        
+        refinement_prompt = ""
+        if refinement:
+            refinement_prompt = f"\nPrevious code feedback: {refinement}"
+
         prompt = f"""
-        Analyze this {language} code:
-        ```{language}
-        {code}
-        ```
-        Return MARKDOWN with these EXACT sections:
-        ## Corrected Code
-        ## Error Analysis
-        ## Optimizations
-        ## Security Check
+        You are an expert AI developer. Generate {language} code{template_prompt} that:
+        {prompt_text}
+        
+        Requirements:
+        1. Production-quality code
+        2. Follow {language} best practices
+        3. Include error handling
+        4. Add relevant comments
+        5. Support easy extension
+        
+        {refinement_prompt}
+        
+        Format response with:
+        - Markdown code block with syntax highlighting
+        - Brief overview in bullet points
+        - Key features list
+        - Potential extension ideas
         """
-        model = genai.GenerativeModel('gemini-pro')
+        
+        model = genai.GenerativeModel('gemini-2.0-pro-exp')
         response = model.generate_content(prompt)
         return response.text
+    
     except Exception as e:
-        return f"**Analysis Error**: {str(e)}"
+        return f"**Generation Error**: {str(e)}"
 
-def code_chat(code, question):
-    """Chat assistant for code Q&A"""
-    try:
-        prompt = f"""
-        Code being discussed:
-        ```python
-        {code}
-        ```
-        Question: {question}
-        Answer with:
-        - Clear explanation
-        - Code examples
-        - Best practices
-        """
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"**Chat Error**: {str(e)}"
-
-def parse_analysis(response):
-    """Reliable response parser"""
-    sections = {
-        'corrected': '',
-        'errors': '',
-        'optimizations': '',
-        'security': ''
+def parse_generated_response(response):
+    """Parse generated code and documentation"""
+    components = {
+        'code': '',
+        'overview': '',
+        'features': '',
+        'extensions': ''
     }
     
-    # Updated parsing logic
-    corrected_match = re.search(r'## Corrected Code\s*(.*?)## Error Analysis', response, re.DOTALL)
-    if corrected_match:
-        sections['corrected'] = corrected_match.group(1).strip()
+    # Extract code block
+    code_match = re.search(r'```[\w+]*\n(.*?)```', response, re.DOTALL)
+    if code_match:
+        components['code'] = code_match.group(1)
     
-    errors_match = re.search(r'## Error Analysis\s*(.*?)## Optimizations', response, re.DOTALL)
-    if errors_match:
-        sections['errors'] = errors_match.group(1).strip()
+    # Extract documentation sections
+    components['overview'] = '\n'.join(re.findall(r'- (Overview: .+)', response))
+    components['features'] = '\n'.join(re.findall(r'- (Feature: .+)', response))
+    components['extensions'] = '\n'.join(re.findall(r'- (Extension: .+)', response))
     
-    optimizations_match = re.search(r'## Optimizations\s*(.*?)## Security Check', response, re.DOTALL)
-    if optimizations_match:
-        sections['optimizations'] = optimizations_match.group(1).strip()
+    return components
+
+# Add to UI components
+with st.expander("🚀 AI Code Generator Pro", expanded=True):
+    gen_col1, gen_col2 = st.columns([3, 1])
     
-    security_match = re.search(r'## Security Check\s*(.*?)$', response, re.DOTALL)
-    if security_match:
-        sections['security'] = security_match.group(1).strip()
+    with gen_col1:
+        prompt_text = st.text_area("💡 Describe your desired functionality:", 
+                                 height=150,
+                                 placeholder="e.g., 'Python REST API for user management with JWT auth'")
+        
+        refinement = st.text_input("🔧 Refine generated code:", 
+                                 placeholder="e.g., 'Add rate limiting and database connection pooling'")
     
-    return sections
+    with gen_col2:
+        template = st.selectbox("📁 Template:", 
+                              ["Custom", "Web API", "CLI Tool", "Data Pipeline", 
+                               "ML Model", "GUI Application", "Microservice"])
+        
+        gen_lang = st.selectbox("⌨️ Language:", 
+                              ["Python", "JavaScript", "Java", "Go", "C#", "TypeScript"])
 
-# --- UI Setup ---
-st.set_page_config(page_title="Ultimate Code Assistant", page_icon="🤖", layout="wide")
+    if st.button("✨ Generate Code", key="gen_button"):
+        if not prompt_text.strip():
+            st.error("⚠️ Please describe the functionality you want")
+        else:
+            with st.spinner("🚀 Crafting production-ready code..."):
+                response = generate_code_from_text(prompt_text, gen_lang, template, refinement)
+                
+                if not response.startswith("**"):
+                    components = parse_generated_response(response)
+                    st.session_state.generated_components = components
+                    
+                    # Display results in tabs
+                    gen_tab1, gen_tab2, gen_tab3, gen_tab4 = st.tabs(["🧑💻 Code", "📄 Overview", "⭐ Features", "🔮 Extensions"])
+                    
+                    with gen_tab1:
+                        st.code(components['code'], language=gen_lang.lower())
+                        st.download_button("📥 Download Code", components['code'], 
+                                         file_name=f"generated_{gen_lang.lower()}.{get_extension(gen_lang)}")
+                        
+                        if st.button("🧩 Insert into Editor"):
+                            st.session_state.code = components['code']
+                            st.rerun()
+                    
+                    with gen_tab2:
+                        st.markdown(f"### System Overview\n{components['overview']}")
+                    
+                    with gen_tab3:
+                        st.markdown(f"### Key Features\n{components['features']}")
+                    
+                    with gen_tab4:
+                        st.markdown(f"### Future Extensions\n{components['extensions']}")
+                else:
+                    st.error(response)
 
-# Session State
-if 'history' not in st.session_state:
-    st.session_state.history = []
-if 'code' not in st.session_state:
-    st.session_state.code = ""
-if 'chat' not in st.session_state:
-    st.session_state.chat = []
-
-# Main Interface
-st.title("🤖 Ultimate Code Assistant")
-col1, col2 = st.columns([3, 1])
-
-# Code Input Area
-with col1:
-    uploaded_file = st.file_uploader("📤 Upload Code", type=["py","js","java","cpp","cs","go"])
-    code = st.text_area("📝 Code Editor", height=300, value=st.session_state.code)
-    
-    # Analysis Controls
-    col1a, col1b = st.columns(2)
-    with col1a:
-        analyze_btn = st.button("🔍 Analyze Code", use_container_width=True)
-    with col1b:
-        gen_btn = st.button("✨ Generate Docs", use_container_width=True)
-
-# Right Sidebar
-with col2:
-    lang = st.selectbox("🌐 Language", ["Python", "JavaScript", "Java", "C++", "C#", "Go"])
-    
-    # Chat Interface
-    st.subheader("💬 Code Chat")
-    user_question = st.text_input("Ask about the code:")
-    if user_question and code:
-        response = code_chat(code, user_question)
-        st.session_state.chat.append((user_question, response))
-    
-    for q, a in st.session_state.chat[-3:]:
-        with st.expander(f"Q: {q}"):
-            st.markdown(a)
-
-# --- Handlers ---
-# Code Analysis
-if analyze_btn:
-    if code.strip():
-        with st.spinner("🔬 Deep analysis..."):
-            response = analyze_code(code, lang)
-            parsed = parse_analysis(response)
-            
-            st.subheader("Analysis Results")
-            tab1, tab2, tab3, tab4 = st.tabs(["🛠 Fixed Code", "📜 Errors", "⚡ Optimize", "🔒 Security"])
-            
-            with tab1:
-                st.code(parsed['corrected'], language=lang.lower())
-            
-            with tab2:
-                st.markdown(f"```\n{parsed['errors']}\n```")
-            
-            with tab3:
-                st.markdown(f"```\n{parsed['optimizations']}\n```")
-            
-            with tab4:
-                st.markdown(f"```\n{parsed['security']}\n```")
-            
-            st.session_state.history.append({
-                'code': code,
-                'analysis': parsed,
-                'timestamp': datetime.now()
-            })
-    else:
-        st.error("⚠️ Please input code to analyze")
-
-# Documentation Generation
-if gen_btn:
-    if code.strip():
-        with st.spinner("📝 Generating docs..."):
-            # Add documentation generation logic
-            pass
-    else:
-        st.error("⚠️ Please input code to document")
-
-# History
-with st.sidebar:
-    st.subheader("📅 History")
-    for idx, entry in enumerate(st.session_state.history[-5:]):
-        with st.expander(f"Analysis {idx+1}"):
-            st.code(entry['code'][:100] + "...")
-
-st.markdown("---")
-st.caption("🔐 Secure AI Processing | 🛠 Full Feature Set | 💬 Interactive Chat")
+# Add helper function for file extensions
+def get_extension(language):
+    extensions = {
+        "Python": "py",
+        "JavaScript": "js",
+        "Java": "java",
+        "Go": "go",
+        "C#": "cs",
+        "TypeScript": "ts"
+    }
+    return extensions.get(language, "txt")
