@@ -62,11 +62,11 @@ st.set_page_config(page_title="AI Code Debugger Pro", page_icon="🤖", layout="
 st.markdown("""
     <style>
         .stMarkdown pre {border-radius: 10px; padding: 15px!important;}
-        .st-emotion-cache-1y4p8pa {padding: 2rem 1rem;}
-        .reportview-container {background: #f5f5f5;}
-        .diff-added {background: #e6ffe6;}
-        .diff-removed {background: #ffe6e6;}
         .diff-container {padding: 10px; border-radius: 5px;}
+        .table-container {overflow-x: auto;}
+        table {width: 100%; border-collapse: collapse;}
+        th, td {border: 1px solid #ddd; padding: 8px; text-align: left;}
+        th {background-color: #f2f2f2;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -125,28 +125,23 @@ if st.button("🚀 Analyze Code", use_container_width=True):
             tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Explanation", "💎 Optimizations"])
             
             with tab1:
-                st.subheader("Improved Code")
-                st.code(sections['code'], line_numbers=True)
+                st.subheader("Original vs Corrected Code")
                 
-                # Diff Visualization
-                st.subheader("Code Differences")
-                diff = difflib.unified_diff(
-                    code.splitlines(),
-                    sections['code'].splitlines(),
-                    fromfile='Original',
-                    tofile='Corrected',
-                    lineterm=''
-                )
-                diff_html = "<div class='diff-container'>"
-                for line in diff:
-                    if line.startswith('+'):
-                        diff_html += f"<div class='diff-added'>{line}</div>"
-                    elif line.startswith('-'):
-                        diff_html += f"<div class='diff-removed'>{line}</div>"
-                    else:
-                        diff_html += f"<div>{line}</div>"
-                diff_html += "</div>"
-                st.markdown(diff_html, unsafe_allow_html=True)
+                # Creating a side-by-side table for code comparison
+                st.markdown("""
+                <div class='table-container'>
+                    <table>
+                        <tr>
+                            <th>🔴 Original Code</th>
+                            <th>✅ Corrected Code</th>
+                        </tr>
+                        <tr>
+                            <td><pre>{original}</pre></td>
+                            <td><pre>{corrected}</pre></td>
+                        </tr>
+                    </table>
+                </div>
+                """.format(original=code, corrected=sections['code']), unsafe_allow_html=True)
             
             with tab2:
                 st.markdown(f"### Error Breakdown\n{sections['explanation']}")
