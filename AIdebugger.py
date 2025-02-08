@@ -11,7 +11,6 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 def correct_code(code_snippet, language):
     """Analyze and correct code using Gemini AI with enhanced error handling."""
     try:
-        # Determine code block formatting
         lang = language.lower() if language != "auto-detect" else ""
         code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```\n{code_snippet}\n```"
         
@@ -42,37 +41,44 @@ def correct_code(code_snippet, language):
     except Exception as e:
         return f"**API Error**: {str(e)}"
 
+def generate_code_from_text(prompt_text, language):
+    """Generate code from a text prompt using Gemini AI."""
+    try:
+        prompt = f"""
+        You are an AI software developer. Generate code based on this description:
+
+        {prompt_text}
+
+        Provide the output in markdown code blocks with syntax highlighting for {language}.
+        """
+        
+        model = genai.GenerativeModel('gemini-2.0-pro-exp')
+        response = model.generate_content(prompt)
+        return response.text
+    
+    except Exception as e:
+        return f"**API Error**: {str(e)}"
+
 def parse_response(response_text):
     """Parse the AI response into structured sections"""
-    sections = {
-        'code': '',
-        'explanation': '',
-        'improvements': ''
-    }
+    sections = {'code': '', 'explanation': '', 'improvements': ''}
     
-    # Extract corrected code
     code_match = re.search(r'```[\w+]*\n(.*?)```', response_text, re.DOTALL)
     if code_match:
         sections['code'] = code_match.group(1)
     
-    # Extract explanation
-    explanation_match = re.search(r'### Error Explanation(.*?)### Optimization Suggestions', 
-                                response_text, re.DOTALL)
+    explanation_match = re.search(r'### Error Explanation(.*?)### Optimization Suggestions', response_text, re.DOTALL)
     if explanation_match:
         sections['explanation'] = explanation_match.group(1).strip()
     
-    # Extract improvements
-    improvements_match = re.search(r'### Optimization Suggestions(.*?)$', 
-                                 response_text, re.DOTALL)
+    improvements_match = re.search(r'### Optimization Suggestions(.*?)$', response_text, re.DOTALL)
     if improvements_match:
         sections['improvements'] = improvements_match.group(1).strip()
     
     return sections
 
-# Streamlit UI Configuration
 st.set_page_config(page_title="AI Code Debugger Pro", page_icon="🤖", layout="wide")
 
-# Custom CSS Styling
 st.markdown("""
     <style>
         .stMarkdown pre {border-radius: 10px; padding: 15px!important;}
@@ -84,31 +90,22 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Session State Initialization
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# Main UI
 st.title("🤖 AI Code Debugger Pro")
 st.write("Advanced code analysis powered by Google Gemini")
 
-# Input Section
 col1, col2 = st.columns([3, 1])
 with col1:
-    uploaded_file = st.file_uploader("📤 Upload code file", 
-                                   type=["py","js","java","cpp","cs","go","rs","ts"])
-    code = st.text_area("📝 Paste code here:", height=300,
-                      value=st.session_state.get('code', ''),
-                      help="Supports 10+ programming languages")
-
+    uploaded_file = st.file_uploader("📤 Upload code file", type=["py","js","java","cpp","cs","go","rs","ts"])
+    code = st.text_area("📝 Paste code here:", height=300, value=st.session_state.get('code', ''), help="Supports 10+ programming languages")
+    prompt_text = st.text_area("💡 Describe the functionality you want:", height=150, help="AI will generate code based on your description")
 with col2:
-    lang = st.selectbox("🌐 Language:", ["Auto-Detect", "Python", "JavaScript", 
-                                       "Java", "C++", "C#", "Go", "Rust", "TypeScript"])
-    analysis_type = st.radio("🔍 Analysis Type:", 
-                           ["Full Audit", "Quick Fix", "Security Review"])
+    lang = st.selectbox("🌐 Language:", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust", "TypeScript"])
+    analysis_type = st.radio("🔍 Analysis Type:", ["Full Audit", "Quick Fix", "Security Review"])
     st.info("💡 Tip: Use 'Full Audit' for complete code review")
 
-# Process Analysis
 if st.button("🚀 Analyze Code", use_container_width=True):
     if not code.strip():
         st.error("⚠️ Please input code or upload a file")
@@ -118,21 +115,12 @@ if st.button("🚀 Analyze Code", use_container_width=True):
             response = correct_code(code, lang.lower() if lang != "Auto-Detect" else "auto-detect")
             process_time = (datetime.now() - start_time).total_seconds()
             
-            # Save to history
-            st.session_state.history.append({
-                'code': code,
-                'response': response,
-                'timestamp': start_time
-            })
+            st.session_state.history.append({'code': code, 'response': response, 'timestamp': start_time})
         
-        # Error Handling
         if response.startswith("**API Error**"):
             st.error(response)
         else:
-            # Parse response
             sections = parse_response(response)
-            
-            # Display Results
             st.success(f"✅ Analysis completed in {process_time:.2f}s")
             tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Explanation", "💎 Optimizations"])
             
@@ -146,6 +134,14 @@ if st.button("🚀 Analyze Code", use_container_width=True):
             with tab3:
                 st.markdown(f"### Optimization Recommendations\n{sections['improvements']}")
 
-# Footer
+if st.button("✨ Generate Code", use_container_width=True):
+    if not prompt_text.strip():
+        st.error("⚠️ Please enter a prompt description")
+    else:
+        with st.spinner("🚀 Generating code..."):
+            response = generate_code_from_text(prompt_text, lang)
+            st.subheader("Generated Code")
+            st.code(response, language=lang.lower(), line_numbers=True)
+
 st.markdown("---")
 st.markdown("🔒 **Security Note:** Code is processed securely through Google's API and not stored.")
