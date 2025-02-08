@@ -12,7 +12,8 @@ def correct_code(code_snippet, language):
     """Analyze and correct code using Gemini AI with enhanced error handling."""
     try:
         lang = language.lower() if language != "auto-detect" else ""
-        code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```\n{code_snippet}\n```"
+        code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```
+{code_snippet}\n```"
         
         prompt = f"""
         You are an expert code correction assistant. Analyze, debug, and improve this code:
@@ -160,6 +161,10 @@ if st.button("🚀 Analyze Code", use_container_width=True):
 if st.button("✨ Auto-Format Code"):
     formatted_code = format_code(code, lang)
     st.code(formatted_code, language=lang.lower())
+
+if st.button("🛠 Generate Code"):
+    generated_code = generate_code_from_text(prompt_text, lang)
+    st.code(generated_code, language=lang.lower())
 
 st.markdown("---")
 st.markdown("🔒 **Security Note:** Code is processed securely through Google's API and not stored.")
