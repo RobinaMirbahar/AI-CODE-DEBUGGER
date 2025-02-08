@@ -1,14 +1,8 @@
 import google.generativeai as genai
 import streamlit as st
 
-
 # Configure Gemini API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])  # Replace with your Gemini API key
-
-def detect_language(code_snippet):
-    """Automatically detect programming language."""
-    guess = Guess()
-    return guess.language_name(code_snippet)
 
 def correct_code(code_snippet, language):
     """
@@ -46,16 +40,11 @@ def correct_code(code_snippet, language):
 st.title("AI Code Debugger & Improver")
 
 code_snippet = st.text_area("Enter your code:")
-language = st.selectbox("Select Language (Optional)", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go"], index=0)
+language = st.selectbox("Select Language", ["Python", "JavaScript", "Java", "C++", "C#", "Go"], index=0)
 
 if st.button("Correct Code"):
     if not code_snippet.strip():
         st.error("Please enter some code to analyze.")
     else:
-        if language == "Auto-Detect":
-            detected_lang = detect_language(code_snippet)
-            st.write(f"Detected Language: {detected_lang}")
-            language = detected_lang
-        
         correction = correct_code(code_snippet, language.lower())
         st.text_area("Suggested Corrections:", correction, height=300)
