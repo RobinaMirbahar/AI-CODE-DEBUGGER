@@ -1,7 +1,7 @@
 # 🚀 AI Code Debugger Pro – AI-Powered Code Analysis & Generation  
 
 ![AI Code Debugger](https://img.shields.io/badge/Made_with-Google_Gemini_2.0_Pro-blue?style=flat-square&logo=googlecloud)  
-**AI Code Debugger Pro** is an AI-powered tool designed to assist developers in **debugging, optimizing, and generating** code with ** @Google Gemini 2.0 Pro**. Whether you need to fix errors, improve performance, or generate code snippets, this interactive tool streamlines the process in a user-friendly interface.  
+**AI Code Debugger Pro** is an AI-powered tool designed to assist developers in **debugging, optimizing, and generating** code with **Google Gemini 2.0 Pro**. Whether you need to fix errors, improve performance, or generate code snippets, this interactive tool streamlines the process in a user-friendly interface.  
 
 🔗 **Live Demo:** [AI Code Debugger Pro](https://aicodedebug.streamlit.app/)  
 
