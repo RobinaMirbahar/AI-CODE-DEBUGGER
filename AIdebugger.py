@@ -59,17 +59,18 @@ def generate_code_from_text(prompt_text, language):
     except Exception as e:
         return f"**API Error**: {str(e)}"
 
-def code_chat_assistant(code_snippet, question):
-    """Real-time Q&A about the codebase"""
+def format_code(code_snippet, language): 
+    """AI-powered code formatting"""
     prompt = f"""
-    You're a code tutor analyzing this code:
-    ```python
+    Reformat this {language} code according to best practices:
+    ```{language}
     {code_snippet}
     ```
-    Answer this question: {question}
-    - Explain concepts simply
-    - Suggest alternative approaches
-    - Highlight potential pitfalls
+    Apply:
+    1. Standard style guide
+    2. Proper indentation
+    3. Consistent naming
+    4. PEP8/ESLint equivalent
     """
     model = genai.GenerativeModel('gemini-pro')
     response = model.generate_content(prompt)
@@ -128,12 +129,6 @@ with col2:
     analysis_type = st.radio("🔍 Analysis Type:", ["Full Audit", "Quick Fix", "Security Review"])
     st.info("💡 Tip: Use 'Full Audit' for complete code review")
 
-if st.sidebar.checkbox("💬 Code Chat Assistant"):
-    user_question = st.text_input("Ask about the code:")
-    if user_question:
-        chat_response = code_chat_assistant(code, user_question)
-        st.markdown(f"**AI Tutor:**\n{chat_response}")
-
 if st.button("🚀 Analyze Code", use_container_width=True):
     if not code.strip():
         st.error("⚠️ Please input code or upload a file")
@@ -161,6 +156,10 @@ if st.button("🚀 Analyze Code", use_container_width=True):
             
             with tab3:
                 st.markdown(f"### Optimization Recommendations\n{sections['improvements']}")
+
+if st.button("✨ Auto-Format Code"):
+    formatted_code = format_code(code, lang)
+    st.code(formatted_code, language=lang.lower())
 
 st.markdown("---")
 st.markdown("🔒 **Security Note:** Code is processed securely through Google's API and not stored.")
