@@ -1,6 +1,6 @@
 import google.generativeai as genai
 import streamlit as st
-from guesslang import Guess
+
 
 # Configure Gemini API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])  # Replace with your Gemini API key
