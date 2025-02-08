@@ -4,15 +4,18 @@ import difflib
 import re
 from datetime import datetime
 
-# Configure Gemini API
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+# Configure Gemini API (Ensure API key is correctly set in secrets)
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+except KeyError:
+    st.error("⚠️ API Key not found! Please add your Gemini API Key in Streamlit secrets.")
+    st.stop()
 
 @st.cache_data(show_spinner=False)
 def correct_code(code_snippet, language):
     """Analyze and correct code using Gemini AI with enhanced error handling."""
     try:
-        # Determine code block formatting
-        lang = language.lower() if language != "auto-detect" else ""
+        lang = language.lower() if language != "Auto-Detect" else ""
         code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```\n{code_snippet}\n```"
         
         prompt = f"""
@@ -43,30 +46,21 @@ def correct_code(code_snippet, language):
         return f"**API Error**: {str(e)}"
 
 def parse_response(response_text):
-    """Parse the AI response into structured sections"""
-    sections = {
-        'code': '',
-        'explanation': '',
-        'improvements': ''
-    }
-    
-    # Extract corrected code
+    """Parse AI response into structured sections"""
+    sections = {'code': '', 'explanation': '', 'improvements': ''}
+
     code_match = re.search(r'```[^\n]*\n(.*?)```', response_text, re.DOTALL)
     if code_match:
         sections['code'] = code_match.group(1)
-    
-    # Extract explanation
-    explanation_match = re.search(r'### Error Explanation(.*?)### Optimization Suggestions', 
-                                response_text, re.DOTALL)
+
+    explanation_match = re.search(r'### Error Explanation(.*?)### Optimization Suggestions', response_text, re.DOTALL)
     if explanation_match:
         sections['explanation'] = explanation_match.group(1).strip()
-    
-    # Extract improvements
-    improvements_match = re.search(r'### Optimization Suggestions(.*?)$', 
-                                 response_text, re.DOTALL)
+
+    improvements_match = re.search(r'### Optimization Suggestions(.*?)$', response_text, re.DOTALL)
     if improvements_match:
         sections['improvements'] = improvements_match.group(1).strip()
-    
+
     return sections
 
 # Streamlit UI Configuration
@@ -95,18 +89,23 @@ st.write("Advanced code analysis powered by Google Gemini")
 # Input Section
 col1, col2 = st.columns([3, 1])
 with col1:
-    uploaded_file = st.file_uploader("📤 Upload code file", 
-                                   type=["py","js","java","cpp","cs","go","rs","ts"])
-    code = st.text_area("📝 Paste code here:", height=300,
-                      value=st.session_state.get('code', ''),
-                      help="Supports 10+ programming languages")
+    uploaded_file = st.file_uploader("📤 Upload a code file", type=["py", "js", "java", "cpp", "cs", "go", "rs", "ts"])
+
+    if uploaded_file is not None:
+        try:
+            code = uploaded_file.read().decode("utf-8")  # Read file content
+            st.success(f"✅ File '{uploaded_file.name}' uploaded successfully")
+        except Exception as e:
+            st.error(f"❌ Error reading file: {str(e)}")
+            code = ""
+    else:
+        code = st.text_area("📝 Paste your code:", height=300, value=st.session_state.get('code', ''),
+                            help="Supports multiple programming languages")
 
 with col2:
-    lang = st.selectbox("🌐 Language:", ["Auto-Detect", "Python", "JavaScript", 
-                                       "Java", "C++", "C#", "Go", "Rust", "TypeScript"])
-    analysis_type = st.radio("🔍 Analysis Type:", 
-                           ["Full Audit", "Quick Fix", "Security Review"])
-    st.info("💡 Tip: Use 'Full Audit' for complete code review")
+    lang = st.selectbox("🌐 Language:", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust", "TypeScript"])
+    analysis_type = st.radio("🔍 Analysis Type:", ["Full Audit", "Quick Fix", "Security Review"])
+    st.info("💡 Tip: Use 'Full Audit' for a complete review.")
 
 # Process Analysis
 if st.button("🚀 Analyze Code", use_container_width=True):
@@ -171,7 +170,7 @@ with st.sidebar:
     st.subheader("📚 Analysis History")
     for idx, entry in enumerate(reversed(st.session_state.history)):
         if st.button(f"Analysis {len(st.session_state.history)-idx} - {entry['timestamp'].strftime('%H:%M:%S')}",
-                   use_container_width=True):
+                     use_container_width=True):
             st.session_state.code = entry['code']
             st.experimental_rerun()
 
