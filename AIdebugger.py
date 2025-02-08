@@ -11,9 +11,11 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 def correct_code(code_snippet, language, analysis_type="Full Audit"):
     """Enhanced code analysis with multiple modes"""
     try:
+        # Define language for code block
         lang = language.lower() if language != "auto-detect" else ""
         code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```\n{code_snippet}\n```"
         
+        # Base prompt for code analysis
         base_prompt = f"""
         You are an expert code assistant. Analyze this code:
 
@@ -29,6 +31,7 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         - Bullet-point fixes
         """
         
+        # Add additional analysis for Security Review or Optimization Suggestions
         if analysis_type == "Security Review":
             base_prompt += """
             ### Security Findings
@@ -44,9 +47,16 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
             - Security enhancements
             """
         
+        # Call the AI model to generate content based on the prompt
         model = genai.GenerativeModel('gemini-2.0-pro-exp')
         response = model.generate_content(base_prompt)
-        return response.text
+        
+        # Ensure response is not empty or malformed
+        if response and hasattr(response, 'text'):
+            return response.text
+        else:
+            return "**API Error**: Unexpected response format or empty response."
+        
     except Exception as e:
         return f"**API Error**: {str(e)}"
 
