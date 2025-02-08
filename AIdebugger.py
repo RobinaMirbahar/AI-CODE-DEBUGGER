@@ -132,7 +132,7 @@ if st.button("🚀 Analyze Code", use_container_width=True):
             
             with tab1:
                 st.subheader("Improved Code")
-                st.code(sections['code'], language=lang.lower(), line_numbers=True)
+                st.code(sections['code'], language=lang.lower())
             
             with tab2:
                 st.markdown(f"### Error Breakdown\n{sections['explanation']}")
@@ -147,7 +147,7 @@ if st.button("✨ Generate Code", use_container_width=True):
         with st.spinner("🚀 Generating code..."):
             response = generate_code_from_text(prompt_text, lang)
             st.subheader("Generated Code")
-            st.code(response, language=lang.lower(), line_numbers=True)
+            st.code(response, language=lang.lower())
 
 st.markdown("---")
 st.markdown("🔒 **Security Note:** Code is processed securely through Google's API and not stored.")
