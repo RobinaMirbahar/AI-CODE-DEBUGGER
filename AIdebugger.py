@@ -19,7 +19,7 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         1. CORRECTED CODE with line numbers and change comments
         2. ERROR EXPLANATION with categorized errors and fixes
         3. {analysis_type.upper()} ANALYSIS with relevant suggestions
-        4. OPTIMIZATION RECOMMENDATIONS for best performance
+        4. OPTIMIZATION RECOMMENDATIONS for better performance and security
         
         Format your response EXACTLY like this:
         
@@ -37,8 +37,8 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         - [Finding 2]
         
         ### OPTIMIZATION RECOMMENDATIONS
-        - [Optimization 1]
-        - [Optimization 2]
+        - [Optimization Tip 1]
+        - [Optimization Tip 2]
         """
         
         model = genai.GenerativeModel('gemini-pro')
@@ -46,7 +46,6 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         return response.text
     except Exception as e:
         return f"**API Error**: {str(e)}"
-
 
 def generate_code_from_text(prompt_text, language, template=None):
     """AI-powered code generation"""
@@ -60,7 +59,7 @@ def generate_code_from_text(prompt_text, language, template=None):
         1. Production-ready code
         2. Error handling
         3. Documentation
-        4. Test hooks
+        4. Best coding practices
         """
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
@@ -68,49 +67,27 @@ def generate_code_from_text(prompt_text, language, template=None):
     except Exception as e:
         return f"**Generation Error**: {str(e)}"
 
-
 def generate_api_documentation(code_snippet, language):
     """Enhanced API documentation generator"""
     try:
         prompt = f"""
-        Create API and function documentation for this {language} code:
+        Create structured API documentation for this {language} code:
         ```{language}
         {code_snippet}
         ```
         
         Include:
-        - API Endpoints and Methods (if applicable)
-        - Request and Response examples
-        - Function and class descriptions
-        - Security best practices
-        - Optimization recommendations for performance
+        - Overview of the code functionality
+        - If applicable, list API endpoints, request/response formats
+        - Security best practices (e.g., authentication, authorization, input validation)
+        - Performance optimization tips
+        - Examples of correct usage
         """
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"**Docs Error**: {str(e)}"
-
-
-def code_chat_assistant(code_snippet, question):
-    """Code-focused chat AI"""
-    try:
-        prompt = f"""
-        As code tutor, explain:
-        ```python
-        {code_snippet}
-        ```
-        Question: {question}
-        - Simplify concepts
-        - Give examples
-        - Highlight best practices
-        """
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"**Chat Error**: {str(e)}"
-
 
 def parse_response(response_text):
     """Robust response parser with fallbacks"""
@@ -132,27 +109,41 @@ def parse_response(response_text):
     
     return sections
 
-st.set_page_config(page_title="AI Code Suite Pro", page_icon="🚀", layout="wide")
-
-if 'history' not in st.session_state:
-    st.session_state.history = []
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
-if 'code' not in st.session_state:
-    st.session_state.code = ""
-
 st.title("🚀 AI Code Suite Pro")
+col1, col2 = st.columns([3, 1])
 
-code = st.text_area("📝 Code Editor", height=300, value=st.session_state.code, help="Write or paste your code here")
+with col1:
+    uploaded_file = st.file_uploader("📤 Upload Code", type=["py","js","java","cpp","cs","go"])
+    if uploaded_file:
+        try:
+            st.session_state.code = uploaded_file.read().decode("utf-8")
+        except UnicodeDecodeError:
+            st.error("⚠️ Invalid file format - please upload text-based source files")
+    
+    code = st.text_area("📝 Code Editor", height=300, value=st.session_state.code)
+    
+    gen_prompt = st.text_area("💡 Code Generation Prompt", height=100, placeholder="Describe functionality to generate...")
 
-if st.button("📚 Generate Docs"):
+with col2:
+    lang = st.selectbox("🌐 Language", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"])
+    analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
+    template = st.selectbox("📁 Code Template", ["None", "Web API", "CLI", "GUI", "Microservice"])
+
+col3, col4, col5 = st.columns(3)
+with col3:
+    analyze_btn = st.button("🔍 Analyze Code")
+with col4:
+    gen_btn = st.button("✨ Generate Code")
+with col5:
+    doc_btn = st.button("📚 Generate Docs")
+
+if doc_btn:
     if code.strip():
         with st.spinner("📝 Generating documentation..."):
-            docs = generate_api_documentation(code, "python")
+            docs = generate_api_documentation(code, lang)
             st.markdown(docs)
             st.download_button("📥 Download Spec", docs, file_name="api_spec.yaml", mime="text/yaml")
     else:
         st.error("⚠️ Please input code to document")
 
-st.markdown("---")
 st.markdown("🔒 *Code processed securely via Google's AI APIs*")
