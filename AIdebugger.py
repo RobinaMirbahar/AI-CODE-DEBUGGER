@@ -25,7 +25,7 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         """
         
         model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content([{"text": base_prompt}])
+        response = model.generate_content(base_prompt)
         return json.loads(response.text) if response and response.text else {"error": "No response from AI."}
     except Exception as e:
         return {"error": f"API Error: {str(e)}"}
@@ -37,7 +37,7 @@ def generate_code_from_text(prompt, language):
     
     gen_prompt = f"Generate a {language} script based on this description: {prompt}"
     model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content([{"text": gen_prompt}])
+    response = model.generate_content(gen_prompt)
     return response.text if response and response.text else "⚠️ No response from AI."
 
 def generate_api_documentation(code_snippet, language):
@@ -47,7 +47,7 @@ def generate_api_documentation(code_snippet, language):
     
     doc_prompt = f"Generate API documentation for this {language} code:\n```{language}\n{code_snippet}\n```"
     model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content([{"text": doc_prompt}])
+    response = model.generate_content(doc_prompt)
     return response.text if response and response.text else "⚠️ No response from AI."
 
 def auto_detect_language(code):
