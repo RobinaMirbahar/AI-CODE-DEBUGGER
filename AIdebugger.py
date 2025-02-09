@@ -67,6 +67,26 @@ def parse_response(response_text):
     
     return sections
 
+def generate_code_from_text(prompt, language, template):
+    """Generates code based on user-provided description."""
+    if not prompt.strip():
+        return "⚠️ Please enter a prompt to generate code."
+    
+    gen_prompt = f"Generate a {language} {template} based on this description: {prompt}"
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(gen_prompt)
+    return response.text if response and response.text else "⚠️ No response from AI."
+
+def generate_api_documentation(code_snippet, language):
+    """Generates documentation for provided code."""
+    if not code_snippet.strip():
+        return "⚠️ Please provide code for documentation."
+    
+    doc_prompt = f"Generate API documentation for this {language} code:\n```{language}\n{code_snippet}\n```"
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(doc_prompt)
+    return response.text if response and response.text else "⚠️ No response from AI."
+
 st.title("🚀 AI Code Debugger Pro")
 col1, col2 = st.columns([3, 1])
 
@@ -92,7 +112,7 @@ with col2:
     analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
     template = st.selectbox("📁 Code Template", ["None", "Web API", "CLI", "GUI", "Microservice"])
 
-if st.button("🚀 Analyze Code", use_container_width=True):
+if st.button("🚀 Analyze Code"):
     if not code.strip():
         st.error("⚠️ Please input code or upload a file")
     else:
