@@ -8,10 +8,9 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 @st.cache_data(show_spinner=False)
 def correct_code(code_snippet, language, analysis_type="Full Audit"):
-    """Enhanced AI-driven code analysis"""
+    """AI-driven code analysis with best practices"""
     try:
         lang = language.lower() if language != "Auto-Detect" else "python"
-        code_block = f"```{lang}\n{code_snippet}\n```"
 
         base_prompt = f"""
         You are an AI Code Debugger. Given the {lang} code below, follow these strict steps:
@@ -41,6 +40,28 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
 
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(base_prompt)
+        return response.text
+    except Exception as e:
+        return f"**API Error**: {str(e)}"
+
+def generate_code(prompt, language):
+    """AI-powered code generation"""
+    try:
+        lang = language.lower() if language != "Auto-Detect" else "python"
+        model = genai.GenerativeModel('gemini-pro')
+
+        gen_prompt = f"""
+        You are a professional software engineer. Based on the following request, generate {lang} code:
+        
+        **Request:** {prompt}  
+        - Ensure best practices  
+        - Output only the code inside a code block  
+
+        💡 **Format:**  
+        ✅ Use `### GENERATED CODE` before the code block  
+        """
+
+        response = model.generate_content(gen_prompt)
         return response.text
     except Exception as e:
         return f"**API Error**: {str(e)}"
@@ -102,10 +123,12 @@ with col2:
                                       "Java", "C++", "C#", "Go", "Rust"])
     analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
 
-col3, col4 = st.columns(2)
+col3, col4, col5 = st.columns(3)
 with col3:
     analyze_btn = st.button("🔍 Analyze Code", use_container_width=True)
 with col4:
+    generate_btn = st.button("🖊 Generate Code", use_container_width=True)
+with col5:
     doc_btn = st.button("📚 Generate Docs", use_container_width=True)
 
 if analyze_btn:
@@ -133,6 +156,18 @@ if analyze_btn:
     else:
         st.error("⚠️ Please input code to analyze")
 
+if generate_btn:
+    prompt = st.text_area("🔮 Describe the code you need:", height=100)
+    if st.button("⚡ Generate", use_container_width=True):
+        if prompt.strip():
+            with st.spinner("🖊 Generating code..."):
+                gen_response = generate_code(prompt, lang)
+                generated_code_match = re.search(r'### GENERATED CODE\s*```.*?\n([\s\S]+?)```', gen_response, re.IGNORECASE)
+                generated_code = generated_code_match.group(1).strip() if generated_code_match else "⚠️ No valid code generated"
+                st.code(generated_code, language=lang.lower())
+        else:
+            st.error("⚠️ Please enter a prompt to generate code")
+
 if doc_btn:
     if code.strip():
         with st.spinner("📝 Generating documentation..."):
@@ -142,16 +177,4 @@ if doc_btn:
     else:
         st.error("⚠️ Please input code to document")
 
-with st.sidebar:
-    st.subheader("💬 Code Chat")
-    user_question = st.text_input("Ask about the code:")
-    if user_question and code.strip():
-        st.markdown(f"**AI Response:**\n\n🚀 *AI explanation coming soon...*")  # Placeholder
-
-    st.subheader("📚 History")
-    for idx, item in enumerate(st.session_state.history[-3:]):
-        with st.expander(f"Analysis {idx+1} - {item['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}"):
-            st.code(item['code'][:300] + "...")
-
-st.markdown("---")
 st.markdown("🔒 *Code processed securely via Google's AI APIs*")
