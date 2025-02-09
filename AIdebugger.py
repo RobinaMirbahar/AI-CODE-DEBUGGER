@@ -7,47 +7,49 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 @st.cache_data(show_spinner=False)
 def correct_code(code_snippet, language, analysis_type="Full Audit"):
-    """Enhanced code analysis with multiple modes"""
+    """Performs detailed AI-powered code analysis with structured output."""
     try:
         if not code_snippet.strip():
             return "⚠️ No code provided for analysis."
+        
         lang = language.lower() if language != "Auto-Detect" else "python"
         code_block = f"```{lang}\n{code_snippet}\n```"
 
-        # Use a well-structured prompt to get better responses
+        # Improved AI prompt
         base_prompt = f"""
-        Act as an expert {lang} developer. Perform deep code analysis and return structured results:
+        You are an expert {lang} developer. Perform deep analysis and return:
         
-        1. CORRECTED CODE with line numbers and change comments
-        2. ERROR EXPLANATION with categorized errors and fixes
-        3. {analysis_type.upper()} ANALYSIS with relevant suggestions
-        4. OPTIMIZATION RECOMMENDATIONS for better performance and security
+        1. **Corrected Code** (with clear comments on changes)
+        2. **Error Explanation** (categorized errors and fixes)
+        3. **{analysis_type.upper()} Analysis** (detailed insights)
+        4. **Optimization Recommendations** (security, performance, best practices)
         
-        Format your response EXACTLY like this:
+        **Strictly format response as follows:**
         
         ### CORRECTED CODE
         ```{lang}
         [Your corrected code here]
         ```
-        
+
         ### ERROR EXPLANATION
-        - [Error 1]
-        - [Error 2]
-        
-        ### ANALYSIS FINDINGS
-        - [Finding 1]
-        - [Finding 2]
-        
+        - **Syntax Errors**: [Explain issues & fixes]
+        - **Security Issues**: [Highlight risks like injections, leaks]
+        - **Logical Errors**: [Incorrect logic, faulty conditions]
+
+        ### {analysis_type.upper()} FINDINGS
+        - [Insight 1: e.g., Missing exception handling]
+        - [Insight 2: e.g., Inefficient algorithm usage]
+
         ### OPTIMIZATION RECOMMENDATIONS
-        - [Optimization Tip 1]
-        - [Optimization Tip 2]
+        - **Performance**: [Optimize O(n²) to O(n), parallelize loops, caching]
+        - **Security**: [Validate user inputs, avoid hardcoded secrets]
+        - **Best Practices**: [Use f-strings, modularize code, docstrings]
+        - **Refactoring**: [Split large functions, remove redundant logic]
+        - **Tests**: [Include edge case tests, increase code coverage]
         
-        Analyze this code:
-        ```{lang}
-        {code_snippet}
-        ```
+        Analyze this code:\n```{lang}\n{code_snippet}\n```
         """
-        
+
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(base_prompt)
 
@@ -72,28 +74,6 @@ def parse_response(response_text):
 
     return sections
 
-def generate_code_from_text(prompt, language, template):
-    """Generates code based on user-provided description."""
-    if not prompt.strip():
-        return "⚠️ Please enter a prompt to generate code."
-
-    gen_prompt = f"Generate a {language} {template} based on this description: {prompt}"
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(gen_prompt)
-
-    return response.text if response and response.text else "⚠️ No response from AI."
-
-def generate_api_documentation(code_snippet, language):
-    """Generates documentation for provided code."""
-    if not code_snippet.strip():
-        return "⚠️ Please provide code for documentation."
-
-    doc_prompt = f"Generate API documentation for this {language} code:\n```{language}\n{code_snippet}\n```"
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(doc_prompt)
-
-    return response.text if response and response.text else "⚠️ No response from AI."
-
 # Streamlit UI
 st.title("🚀 AI Code Debugger Pro")
 col1, col2 = st.columns([3, 1])
@@ -112,12 +92,9 @@ with col1:
             st.error("⚠️ Invalid file format - please upload text-based source files")
     code = st.text_area("📝 Code Editor", height=300, value=st.session_state.code)
 
-gen_prompt = st.text_area("💡 Code Generation Prompt", height=100, placeholder="Describe functionality to generate...")
-
 with col2:
     lang = st.selectbox("🌐 Language", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"])
     analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
-    template = st.selectbox("📁 Code Template", ["None", "Web API", "CLI", "GUI", "Microservice"])
 
 if st.button("🚀 Analyze Code"):
     if not code.strip():
@@ -134,19 +111,3 @@ if st.button("🚀 Analyze Code"):
                 st.markdown(f"### Error Breakdown\n{sections['explanation']}")
             with tab3:
                 st.markdown(f"### Optimization Recommendations\n{sections['improvements']}")
-
-if st.button("✨ Generate Code"):
-    if not gen_prompt.strip():
-        st.error("⚠️ Please enter a prompt")
-    else:
-        with st.spinner("🛠 Generating AI-powered code..."):
-            generated_code = generate_code_from_text(gen_prompt, lang, template)
-            st.code(generated_code, language=lang.lower())
-
-if st.button("📄 Generate Documentation"):
-    if not code.strip():
-        st.error("⚠️ Please input code to document")
-    else:
-        with st.spinner("📖 Generating API documentation..."):
-            documentation = generate_api_documentation(code, lang.lower())
-            st.markdown(documentation)
