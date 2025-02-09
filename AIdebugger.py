@@ -136,7 +136,6 @@ with col1:
             st.error("⚠️ Invalid file format - please upload text-based source files")
     
     code = st.text_area("📝 Code Editor", height=300, value=st.session_state.code)
-    
     gen_prompt = st.text_area("💡 Code Generation Prompt", height=100, placeholder="Describe functionality to generate...")
 
 with col2:
@@ -144,20 +143,11 @@ with col2:
     analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
     template = st.selectbox("📁 Code Template", ["None", "Web API", "CLI", "GUI", "Microservice"])
 
-col3, col4, col5 = st.columns(3)
-with col3:
-    if st.button("🔍 Analyze Code"):
-        analysis_result = correct_code(code, lang, analysis_type)
-        st.session_state.analysis = parse_response(analysis_result)
-        st.write(st.session_state.analysis)
-with col4:
-    if st.button("✨ Generate Code"):
-        generated_code = generate_code_from_text(gen_prompt, lang, template)
-        st.write(generated_code)
-with col5:
-    if st.button("📚 Generate Docs"):
-        docs = generate_api_documentation(code, lang)
-        st.write(docs)
-
+st.markdown("---")
+st.subheader("Results")
+st.markdown("### Corrected Code")
+st.text_area("", st.session_state.get("analysis", {}).get("code", ""), height=200)
+st.markdown("### Recommendations")
+st.text_area("", st.session_state.get("analysis", {}).get("improvements", ""), height=200)
 st.markdown("---")
 st.markdown("© 2025 AI Code Suite Pro - All Rights Reserved")
