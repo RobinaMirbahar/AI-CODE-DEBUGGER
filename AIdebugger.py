@@ -19,9 +19,11 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         
         base_prompt = f"""
         Analyze this {lang} code and provide structured JSON output containing:
-        - "corrected_code": Corrected code snippet
-        - "error_explanation": Explanation of errors found
-        - "optimization_recommendations": Suggestions for improvements
+        {{
+            "corrected_code": "Corrected version of the provided code",
+            "error_explanation": "Explanation of errors found",
+            "optimization_recommendations": "Suggestions for improvements"
+        }}
         Ensure the response is valid JSON.
         """
         
@@ -32,8 +34,11 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
             return {"error": "⚠️ Empty response from Gemini API."}
         
         try:
-            return json.loads(response.text)
-        except json.JSONDecodeError:
+            response_json = json.loads(response.text)
+            if not all(key in response_json for key in ["corrected_code", "error_explanation", "optimization_recommendations"]):
+                raise ValueError("Missing expected keys in response JSON")
+            return response_json
+        except (json.JSONDecodeError, ValueError):
             return {"error": "⚠️ Gemini API returned an invalid JSON response. Here is the raw output:", "raw_response": response.text}
     except Exception as e:
         return {"error": f"⚠️ API Error: {str(e)}"}
@@ -94,7 +99,7 @@ def run_python_code(code):
     except Exception as e:
         return f"❌ Error: {str(e)}"
 
-st.title("🚀 AI Code Debugger Pro")
+st.title("🚀 AI-Powered Code Debugger Pro")
 toggle_dark_mode()
 
 col1, col2 = st.columns([3, 1])
@@ -118,44 +123,30 @@ with col1:
     if st.button("▶ Run Code") and auto_detect_language(code) == "python":
         st.text(run_python_code(code))
     
+    if st.button("🛠 Generate Code"):
+        if not gen_prompt.strip():
+            st.error("⚠️ Please enter a prompt to generate code.")
+        else:
+            with st.spinner("✨ Generating code..."):
+                generated_code = generate_code_from_text(gen_prompt, lang)
+                st.code(generated_code, language=lang.lower())
+    
+    if st.button("📄 Generate Documentation"):
+        if not code.strip():
+            st.error("⚠️ Please provide code for documentation.")
+        else:
+            with st.spinner("📖 Generating API documentation..."):
+                documentation = generate_api_documentation(code, lang)
+                st.text_area("📜 API Documentation", documentation, height=200)
+
 with col2:
     lang = st.selectbox("🌐 Language", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"])
     analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
 
-if st.button("🚀 Analyze Code"):
-    if not code.strip():
-        st.error("⚠️ Please input code or upload a file")
-    else:
-        with st.spinner("🔬 Deep code analysis in progress..."):
-            start_time = datetime.now()
-            response = correct_code(code, lang.lower() if lang != "Auto-Detect" else "auto-detect")
-            process_time = (datetime.now() - start_time).total_seconds()
-            
-            st.session_state.history.append({'code': code, 'response': response, 'timestamp': start_time})
-        
-        if "error" in response:
-            st.error(response["error"])
-            if "raw_response" in response:
-                st.text_area("Raw Response", response["raw_response"], height=200)
-        else:
-            corrected_code = response["corrected_code"]
-            explanation = response["error_explanation"]
-            improvements = response["optimization_recommendations"]
-            
-            st.success(f"✅ Analysis completed in {process_time:.2f}s")
-            tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Explanation", "💎 Optimizations"])
-            
-            with tab1:
-                st.subheader("Improved Code")
-                st.code(corrected_code, language=lang.lower())
-                display_download_button(corrected_code, lang.lower())
-                st.text_area("🔍 Code Comparison", compare_code(code, corrected_code), height=200)
-            
-            with tab2:
-                st.markdown(f"### Error Breakdown\n{explanation}")
-            
-            with tab3:
-                st.markdown(f"### Optimization Recommendations\n{improvements}")
-
 st.markdown("---")
 st.markdown("© 2025 AI Code Debugger Pro - All Rights Reserved - Robina Mirbahar")
+
+# Editable corrected code before download
+if 'corrected_code' in st.session_state:
+    st.session_state.corrected_code = st.text_area("✏️ Refine Corrected Code", value=st.session_state.corrected_code, height=300)
+    display_download_button(st.session_state.corrected_code, lang)
