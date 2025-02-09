@@ -140,7 +140,7 @@ def parse_response(response_text):
     return sections
 
 # Streamlit UI Configuration
-st.set_page_config(page_title="AI Code Suite Pro", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="AI Code Debugger Pro", page_icon="🚀", layout="wide")
 
 st.markdown("""
     <style>
