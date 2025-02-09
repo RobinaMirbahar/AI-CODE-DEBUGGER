@@ -55,6 +55,8 @@ col1, col2 = st.columns([3, 1])
 
 if 'code' not in st.session_state:
     st.session_state.code = ""
+if 'history' not in st.session_state:
+    st.session_state.history = []
 
 with col1:
     uploaded_file = st.file_uploader("📤 Upload Code", type=["py","js","java","cpp","cs","go"])
