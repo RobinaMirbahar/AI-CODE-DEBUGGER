@@ -1,142 +1,110 @@
 import google.generativeai as genai
 import streamlit as st
+import re
 
 # Configure Gemini API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# Cache results to optimize performance
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=True)
 def correct_code(code_snippet, language, analysis_type="Full Audit"):
-    """Analyzes and corrects code using Gemini AI"""
-    if not code_snippet.strip():
-        return "⚠️ No code provided."
+    """Enhanced code analysis with multiple modes"""
+    try:
+        if not code_snippet.strip():
+            return "⚠️ No code provided for analysis."
+        lang = language.lower() if language != "Auto-Detect" else "python"
+        
+        base_prompt = f"""
+        Analyze this {lang} code and provide:
 
-    lang = language.lower() if language != "Auto-Detect" else "python"
+        1. CORRECTED CODE with line numbers and change comments
+        2. ERROR EXPLANATION with categorized errors and fixes
+        3. {analysis_type.upper()} ANALYSIS with relevant suggestions
+        4. OPTIMIZATION RECOMMENDATIONS for better performance and security
 
-    prompt = f"""
-    Analyze the following {lang} code and provide:
+        Format your response EXACTLY like this:
 
-    1. **Corrected Code** (with line numbers and comments)
-    2. **Error Explanation** (categorized errors and fixes)
-    3. **{analysis_type.upper()} Analysis** (relevant insights)
-    4. **Optimization Recommendations** (performance & security)
+        ### CORRECTED CODE
+        ```{lang}
+        [Your corrected code here]
+        ```
 
-    Format the response strictly as:
-    ```
-    ### CORRECTED CODE
-    ```{lang}
-    [Corrected Code]
-    ```
+        ### ERROR EXPLANATION
+        - [Error 1]
+        - [Error 2]
 
-    ### ERROR EXPLANATION
-    - [Error 1]
-    - [Error 2]
+        ### OPTIMIZATION RECOMMENDATIONS
+        - [Optimization Tip 1]
+        - [Optimization Tip 2]
+        """
 
-    ### ANALYSIS FINDINGS
-    - [Finding 1]
-    - [Finding 2]
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content(base_prompt)
+        return response.text if response and response.text else "⚠️ No response from AI."
+    except Exception as e:
+        return f"**API Error**: {str(e)}"
 
-    ### OPTIMIZATION RECOMMENDATIONS
-    - [Optimization Tip 1]
-    - [Optimization Tip 2]
-    ```
-    """
-
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(prompt)
-    return response.text if response else "⚠️ No AI response."
-
-def generate_code_from_text(prompt, language, template):
-    """Generates code from user description"""
-    if not prompt.strip():
-        return "⚠️ Enter a description."
-
-    query = f"Generate a {language} {template} based on: {prompt}"
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(query)
-
-    return response.text if response else "⚠️ No AI response."
-
-def generate_api_documentation(code_snippet, language):
-    """Generates API documentation for given code"""
-    if not code_snippet.strip():
-        return "⚠️ Provide code for documentation."
-
-    doc_prompt = f"Generate API documentation for this {language} code:\n```{language}\n{code_snippet}\n```"
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(doc_prompt)
-
-    return response.text if response else "⚠️ No AI response."
-
-# Streamlit UI with Tab Layout
-st.set_page_config(page_title="AI Code Debugger", layout="wide")
+# Streamlit UI
 st.title("🚀 AI Code Debugger Pro")
+col1, col2 = st.columns([3, 1])
 
-# Layout: Columns
-col1, col2 = st.columns(2)
+if 'code' not in st.session_state:
+    st.session_state.code = ""
+if 'history' not in st.session_state:
+    st.session_state.history = []
 
 with col1:
     uploaded_file = st.file_uploader("📤 Upload Code", type=["py", "js", "java", "cpp", "cs", "go"])
-    code = st.text_area("📝 Code Editor", height=300, value=uploaded_file.read().decode("utf-8") if uploaded_file else "")
+    if uploaded_file:
+        try:
+            st.session_state.code = uploaded_file.read().decode("utf-8")
+        except UnicodeDecodeError:
+            st.error("⚠️ Invalid file format - please upload text-based source files")
+    code = st.text_area("📝 Code Editor", height=300, value=st.session_state.code)
+
+gen_prompt = st.text_area("💡 Code Generation Prompt", height=100, placeholder="Describe functionality to generate...")
 
 with col2:
-    gen_prompt = st.text_area("💡 Code Generation Prompt", height=100, placeholder="Describe functionality to generate...")
-
-# Tabs for Different Actions
-tab1, tab2, tab3 = st.tabs(["🔍 Analyze Code", "✨ Generate Code", "📄 Generate Documentation"])
-
-with tab1:
     lang = st.selectbox("🌐 Language", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"])
     analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
-    
-    if st.button("🚀 Analyze Code"):
-        if not code.strip():
-            st.error("⚠️ Input code first.")
-        else:
-            with st.spinner("🔬 Analyzing Code..."):
-                response = correct_code(code, lang, analysis_type)
-                st.markdown(response)
-
-with tab2:
     template = st.selectbox("📁 Code Template", ["None", "Web API", "CLI", "GUI", "Microservice"])
-    
-    if st.button("✨ Generate Code"):
-        if not gen_prompt.strip():
-            st.error("⚠️ Enter a prompt.")
-        else:
-            with st.spinner("🛠 Generating Code..."):
-                generated_code = generate_code_from_text(gen_prompt, lang, template)
-                st.code(generated_code, language=lang.lower())
 
-with tab3:
-    if st.button("📄 Generate Documentation"):
-        if not code.strip():
-            st.error("⚠️ Provide code first.")
-        else:
-            with st.spinner("📖 Generating Documentation..."):
-                documentation = generate_api_documentation(code, lang)
-                st.markdown(documentation)
+if st.button("🚀 Analyze Code"):
+    if not code.strip():
+        st.error("⚠️ Please input code or upload a file")
+    else:
+        with st.spinner("🔬 Deep code analysis in progress..."):
+            response = correct_code(code, lang.lower(), analysis_type)
+            
+            # Extract sections
+            corrected_code_match = re.search(r'### CORRECTED CODE\n```[a-zA-Z0-9]+\n(.*?)```', response, re.DOTALL)
+            explanation_match = re.search(r'### ERROR EXPLANATION\n(.*?)\n\n', response, re.DOTALL)
+            recommendations_match = re.search(r'### OPTIMIZATION RECOMMENDATIONS\n(.*?)$', response, re.DOTALL)
+            
+            corrected_code = corrected_code_match.group(1).strip() if corrected_code_match else "⚠️ No corrected code."
+            explanation = explanation_match.group(1).strip() if explanation_match else "⚠️ No error explanation."
+            recommendations = recommendations_match.group(1).strip() if recommendations_match else "⚠️ No recommendations."
+            
+            tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Error Explanation", "💎 Optimizations"])
+            with tab1:
+                st.code(corrected_code, language=lang.lower())
+            with tab2:
+                st.markdown(f"### Error Breakdown\n{explanation}")
+            with tab3:
+                st.markdown(f"### Optimization Recommendations\n{recommendations}")
 
-# Sample Buggy Code for Testing
-st.markdown("### 🐞 Test with Buggy Code")
-buggy_code = """
-def divide_numbers(a, b):
-    return a / b  # No check for division by zero
+if st.button("📄 Generate Documentation"):
+    if not code.strip():
+        st.error("⚠️ Please input code to document")
+    else:
+        with st.spinner("📖 Generating API documentation..."):
+            doc_prompt = f"Generate API documentation for this {lang} code:\n```{lang}\n{code}\n```"
+            model = genai.GenerativeModel('gemini-pro')
+            response = model.generate_content(doc_prompt)
+            st.markdown(response.text if response and response.text else "⚠️ No response from AI.")
 
-def reverse_string(s):
-    return s[::-1  # Syntax error, missing bracket
-
-print("Result:", divide_numbers(10, 0))  # Division by zero
-print(reverse_string("hello"))  # Syntax error
-"""
-st.code(buggy_code, language="python")
-
-# FOOTER
-st.markdown("---")
-st.markdown(
-    """
-    🔹 **AI Code Debugger Pro** - Built with [Streamlit](https://streamlit.io/) & [Gemini AI](https://ai.google.dev/)  
-    💡 Developed by **Robina - Google Cloud Innovator Champion**  
-    📧 Contact: [Your Email] | 🌍 Follow: [Your LinkedIn/GitHub]  
-    """
-)
+# Footer with contact details
+st.markdown("""
+---
+👩‍💻 **Developed by Robina Mallah**  
+📧 [Contact Me](mailto:mallah.robina@gmail.com) | 🌐 [LinkedIn](https://www.linkedin.com/in/robinamirbahar)  
+""")
