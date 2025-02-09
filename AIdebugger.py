@@ -8,31 +8,30 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 @st.cache_data(show_spinner=False)
 def correct_code(code_snippet, language, analysis_type="Full Audit"):
-    """AI-driven code analysis with best practices"""
+    """AI-driven code analysis with best practices and optimizations"""
     try:
         lang = language.lower() if language != "Auto-Detect" else "python"
 
         base_prompt = f"""
-        You are an AI Code Debugger. Given the {lang} code below, follow these strict steps:
+        You are an AI Code Auditor. Given the {lang} code below, perform these tasks:
 
         1️⃣ **Correct the Code**  
-        - Fix syntax errors, logical issues, and best practices  
-        - Preserve original structure and comments  
-        - Output **only the corrected code** inside a code block  
+        - Fix syntax errors, logic mistakes, and structural issues  
+        - Ensure best practices while maintaining readability  
 
         2️⃣ **Error Explanation**  
-        - List errors found and describe how they were fixed  
-        - Use bullet points for readability  
+        - Identify major errors and explain how they were resolved  
 
-        3️⃣ **Best Practices & Recommendations**  
-        - Suggest improvements for performance, security, and maintainability  
+        3️⃣ **Optimization Recommendations**  
+        - Suggest ways to enhance performance, reduce execution time, and optimize memory usage  
+        - Recommend more efficient algorithms, data structures, or coding patterns  
 
-        💡 **Important Formatting Rules:**  
-        ✅ Use `### CORRECTED CODE` before the fixed code  
-        ✅ Use `### ERROR EXPLANATION` for explanations  
-        ✅ Use `### BEST PRACTICES & RECOMMENDATIONS` for best practices  
+        💡 **Format:**  
+        ✅ Use `### CORRECTED CODE` for fixed code  
+        ✅ Use `### ERROR EXPLANATION` for errors  
+        ✅ Use `### OPTIMIZATION RECOMMENDATIONS` for performance tips  
 
-        Here is the code to analyze:
+        Here is the code:
         ```{lang}
         {code_snippet}
         ```
@@ -55,6 +54,7 @@ def generate_code(prompt, language):
         
         **Request:** {prompt}  
         - Ensure best practices  
+        - Optimize for performance and memory usage  
         - Output only the code inside a code block  
 
         💡 **Format:**  
@@ -68,16 +68,18 @@ def generate_code(prompt, language):
 
 def parse_response(response_text):
     """Improved response parser for AI-generated corrections"""
-    sections = {'code': '', 'explanation': '', 'recommendations': ''}
+    sections = {'code': '', 'explanation': '', 'recommendations': '', 'optimizations': ''}
 
     try:
         corrected_code_match = re.search(r'### CORRECTED CODE\s*```.*?\n([\s\S]+?)```', response_text, re.IGNORECASE)
         explanation_match = re.search(r'### ERROR EXPLANATION\s*([\s\S]+?)(?=###|\Z)', response_text, re.IGNORECASE)
         recommendations_match = re.search(r'### BEST PRACTICES & RECOMMENDATIONS\s*([\s\S]+?)(?=###|\Z)', response_text, re.IGNORECASE)
+        optimizations_match = re.search(r'### OPTIMIZATION RECOMMENDATIONS\s*([\s\S]+?)(?=###|\Z)', response_text, re.IGNORECASE)
 
         sections['code'] = corrected_code_match.group(1).strip() if corrected_code_match else "⚠️ No valid corrections detected"
         sections['explanation'] = explanation_match.group(1).strip() if explanation_match else "⚠️ No errors detected"
         sections['recommendations'] = recommendations_match.group(1).strip() if recommendations_match else "⚠️ No recommendations available"
+        sections['optimizations'] = optimizations_match.group(1).strip() if optimizations_match else "⚠️ No optimization tips available"
 
     except Exception as e:
         st.error(f"⚠️ Parsing Error: {str(e)}")
@@ -137,7 +139,7 @@ if analyze_btn:
             response = correct_code(code, lang, analysis_type)
             sections = parse_response(response)
 
-            tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Error Explanation", "✅ Best Practices"])
+            tab1, tab2, tab3, tab4 = st.tabs(["🛠 Corrected Code", "📖 Error Explanation", "✅ Best Practices", "⚡ Optimization"])
             
             with tab1:
                 st.code(sections['code'], language=lang.lower())
@@ -147,6 +149,9 @@ if analyze_btn:
             
             with tab3:
                 st.markdown(f"```\n{sections['recommendations']}\n```")
+
+            with tab4:
+                st.markdown(f"```\n{sections['optimizations']}\n```")
             
             st.session_state.history.append({
                 'code': code,
@@ -155,26 +160,5 @@ if analyze_btn:
             })
     else:
         st.error("⚠️ Please input code to analyze")
-
-if generate_btn:
-    prompt = st.text_area("🔮 Describe the code you need:", height=100)
-    if st.button("⚡ Generate", use_container_width=True):
-        if prompt.strip():
-            with st.spinner("🖊 Generating code..."):
-                gen_response = generate_code(prompt, lang)
-                generated_code_match = re.search(r'### GENERATED CODE\s*```.*?\n([\s\S]+?)```', gen_response, re.IGNORECASE)
-                generated_code = generated_code_match.group(1).strip() if generated_code_match else "⚠️ No valid code generated"
-                st.code(generated_code, language=lang.lower())
-        else:
-            st.error("⚠️ Please enter a prompt to generate code")
-
-if doc_btn:
-    if code.strip():
-        with st.spinner("📝 Generating documentation..."):
-            docs = f"📖 Auto-generated API documentation for {lang} code:\n\n```yaml\n# OpenAPI Specification\n# TODO: Implement AI-generated documentation\n```"
-            st.markdown(docs)
-            st.download_button("📥 Download Spec", docs, file_name="api_spec.yaml", mime="text/yaml")
-    else:
-        st.error("⚠️ Please input code to document")
 
 st.markdown("🔒 *Code processed securely via Google's AI APIs*")
