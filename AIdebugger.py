@@ -140,15 +140,15 @@ if st.button("🚀 Analyze Code"):
             with tab3:
                 st.markdown(f"### Optimization Recommendations\n{sections['improvements']}")
 
-col3, col4, col5 = st.columns([1, 1, 1])  # Equal width columns for proper alignment
-
-with col3:
-    analyze_btn = st.button("🚀 Analyze Code", use_container_width=True)
+col3, col4, col5 = st.columns(3)
 with col4:
-    gen_btn = st.button("✨ Generate Code", use_container_width=True)
+    if st.button("✨ Generate Code"):
+        generated_code = generate_code_from_text(gen_prompt, lang, template)
+        st.write(generated_code)
 with col5:
-    doc_btn = st.button("📚 Generate Docs", use_container_width=True)
-
+    if st.button("📚 Generate Docs"):
+        docs = generate_api_documentation(code, lang)
+        st.write(docs)
 
 st.markdown("---")
 st.markdown("© 2025 AI Code Suite Pro - All Rights Reserved")
