@@ -2,6 +2,8 @@ import google.generativeai as genai
 import streamlit as st
 import re
 from datetime import datetime
+import difflib
+import json
 
 # Configure Gemini API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -13,85 +15,71 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         if not code_snippet.strip():
             return "⚠️ No code provided for analysis."
         
-        lang = language.lower() if language != "Auto-Detect" else "python"
+        lang = language.lower() if language != "Auto-Detect" else auto_detect_language(code_snippet)
         code_block = f"```{lang}\n{code_snippet}\n```"
         
-        base_prompt = f"""
-        Analyze this {lang} code and provide:
-        
-        1. CORRECTED CODE with line numbers and change comments
-        2. ERROR EXPLANATION with categorized errors and fixes
-        3. {analysis_type.upper()} ANALYSIS with relevant suggestions
-        4. OPTIMIZATION RECOMMENDATIONS for better performance and security
-        
-        Format your response EXACTLY like this:
-        
-        ### CORRECTED CODE
-        ```{lang}
-        [Your corrected code here]
-        ```
-        
-        ### ERROR EXPLANATION
-        - [Error 1]
-        - [Error 2]
-        
-        ### ANALYSIS FINDINGS
-        - [Finding 1]
-        - [Finding 2]
-        
-        ### OPTIMIZATION RECOMMENDATIONS
-        - [Optimization Tip 1]
-        - [Optimization Tip 2]
-        """
+        base_prompt = {
+            "prompt": f"""
+            Analyze this {lang} code and provide structured JSON output containing:
+            - Corrected code
+            - Error explanations
+            - Optimization recommendations
+            """,
+            "temperature": 0.7,
+            "max_tokens": 4096,
+            "response_format": "json"
+        }
         
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(base_prompt)
-        return response.text if response and response.text else "⚠️ No response from AI."
+        return json.loads(response.text) if response and response.text else {"error": "No response from AI."}
     except Exception as e:
-        return f"**API Error**: {str(e)}"
+        return {"error": f"API Error: {str(e)}"}
 
-def parse_response(response_text):
-    """Parses AI response into structured sections."""
-    sections = {"code": "", "explanation": "", "improvements": ""}
-    
-    corrected_code_match = re.search(r'### CORRECTED CODE\n```[a-zA-Z0-9]+\n(.*?)```', response_text, re.DOTALL)
-    explanation_match = re.search(r'### ERROR EXPLANATION\n(.*?)\n\n', response_text, re.DOTALL)
-    improvements_match = re.search(r'### OPTIMIZATION RECOMMENDATIONS\n(.*?)$', response_text, re.DOTALL)
-    
-    if corrected_code_match:
-        sections['code'] = corrected_code_match.group(1).strip()
-    if explanation_match:
-        sections['explanation'] = explanation_match.group(1).strip()
-    if improvements_match:
-        sections['improvements'] = improvements_match.group(1).strip()
-    
-    return sections
+def auto_detect_language(code):
+    """Basic language detection based on file structure"""
+    if "import " in code or "def " in code:
+        return "python"
+    elif "function " in code or "const " in code:
+        return "javascript"
+    elif "class " in code and "public static void main" in code:
+        return "java"
+    return "plaintext"
 
-def generate_code_from_text(prompt, language, template):
-    """Generates code based on user-provided description."""
-    if not prompt.strip():
-        return "⚠️ Please enter a prompt to generate code."
-    
-    gen_prompt = f"Generate a {language} {template} based on this description: {prompt}"
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(gen_prompt)
-    return response.text if response and response.text else "⚠️ No response from AI."
+def compare_code(original, corrected):
+    """Generate a side-by-side diff view for code comparison."""
+    diff = difflib.unified_diff(original.splitlines(), corrected.splitlines(), lineterm='')
+    return "\n".join(diff)
 
-def generate_api_documentation(code_snippet, language):
-    """Generates documentation for provided code."""
-    if not code_snippet.strip():
-        return "⚠️ Please provide code for documentation."
-    
-    doc_prompt = f"Generate API documentation for this {language} code:\n```{language}\n{code_snippet}\n```"
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(doc_prompt)
-    return response.text if response and response.text else "⚠️ No response from AI."
+def display_download_button(corrected_code, language):
+    """Allow users to download the corrected code."""
+    st.download_button(label="📥 Download Corrected Code", data=corrected_code, file_name=f"corrected_code.{language}", mime="text/plain")
+
+def toggle_dark_mode():
+    dark_mode = st.toggle("🌙 Dark Mode")
+    if dark_mode:
+        st.markdown("""
+            <style>
+            body { background-color: #121212; color: white; }
+            </style>
+        """, unsafe_allow_html=True)
+
+def run_python_code(code):
+    """Execute Python code safely."""
+    try:
+        exec(code, {})
+        return "✅ Execution Successful"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
 
 st.title("🚀 AI Code Debugger Pro")
+toggle_dark_mode()
+
 col1, col2 = st.columns([3, 1])
 
 if 'code' not in st.session_state:
     st.session_state.code = ""
+
 if 'history' not in st.session_state:
     st.session_state.history = []
 
@@ -104,14 +92,13 @@ with col1:
             st.error("⚠️ Invalid file format - please upload text-based source files")
     
     code = st.text_area("📝 Code Editor", height=300, value=st.session_state.code)
+    if st.button("▶ Run Code") and auto_detect_language(code) == "python":
+        st.text(run_python_code(code))
     
-    gen_prompt = st.text_area("💡 Code Generation Prompt", height=100, placeholder="Describe functionality to generate...")
-
 with col2:
     lang = st.selectbox("🌐 Language", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"])
     analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
-    template = st.selectbox("📁 Code Template", ["None", "Web API", "CLI", "GUI", "Microservice"])
-
+    
 if st.button("🚀 Analyze Code"):
     if not code.strip():
         st.error("⚠️ Please input code or upload a file")
@@ -123,32 +110,29 @@ if st.button("🚀 Analyze Code"):
             
             st.session_state.history.append({'code': code, 'response': response, 'timestamp': start_time})
         
-        if response.startswith("**API Error**"):
-            st.error(response)
+        if "error" in response:
+            st.error(response["error"])
         else:
-            sections = parse_response(response)
+            corrected_code = response["corrected_code"]
+            explanation = response["error_explanation"]
+            improvements = response["optimization_recommendations"]
+            
             st.success(f"✅ Analysis completed in {process_time:.2f}s")
             tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Explanation", "💎 Optimizations"])
             
             with tab1:
                 st.subheader("Improved Code")
-                st.code(sections['code'], language=lang.lower())
+                st.code(corrected_code, language=lang.lower())
+                display_download_button(corrected_code, lang.lower())
+                st.text_area("🔍 Code Comparison", compare_code(code, corrected_code), height=200)
             
             with tab2:
-                st.markdown(f"### Error Breakdown\n{sections['explanation']}")
+                st.markdown(f"### Error Breakdown\n{explanation}")
+                st.button("📋 Copy Explanation", on_click=lambda: st.session_state.update({"clipboard": explanation}))
             
             with tab3:
-                st.markdown(f"### Optimization Recommendations\n{sections['improvements']}")
-
-col3, col4, col5 = st.columns(3)
-with col4:
-    if st.button("✨ Generate Code"):
-        generated_code = generate_code_from_text(gen_prompt, lang, template)
-        st.write(generated_code)
-with col5:
-    if st.button("📚 Generate Docs"):
-        docs = generate_api_documentation(code, lang)
-        st.write(docs)
+                st.markdown(f"### Optimization Recommendations\n{improvements}")
+                st.button("📋 Copy Recommendations", on_click=lambda: st.session_state.update({"clipboard": improvements}))
 
 st.markdown("---")
-st.markdown("© 2025 AI Code Debugger Pro- All Rights Reserved-Robina Mirbahar")
+st.markdown("© 2025 AI Code Debugger Pro - All Rights Reserved - Robina Mirbahar")
