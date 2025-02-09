@@ -50,78 +50,7 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
     except Exception as e:
         return f"**API Error**: {str(e)}"
 
-def generate_code_from_text(prompt_text, language, template=None):
-    """AI-powered code generation"""
-    try:
-        if not prompt_text.strip():
-            return "⚠️ No prompt provided for generation."
-        
-        template_prompt = f" using {template} template" if template else ""
-        prompt = f"""
-        Generate {language} code{template_prompt} for:
-        {prompt_text}
-        
-        Include:
-        1. Production-ready code
-        2. Error handling
-        3. Documentation
-        4. Best coding practices
-        """
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        return response.text if response and response.text else "⚠️ No response from AI."
-    except Exception as e:
-        return f"**Generation Error**: {str(e)}"
-
-def generate_api_documentation(code_snippet, language):
-    """Enhanced API documentation generator"""
-    try:
-        if not code_snippet.strip():
-            return "⚠️ No code provided for documentation."
-        
-        prompt = f"""
-        Create structured API documentation for this {language} code:
-        ```{language}
-        {code_snippet}
-        ```
-        
-        Include:
-        - Overview of the code functionality
-        - If applicable, list API endpoints, request/response formats
-        - Security best practices (e.g., authentication, authorization, input validation)
-        - Performance optimization tips
-        - Examples of correct usage
-        """
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        return response.text if response and response.text else "⚠️ No response from AI."
-    except Exception as e:
-        return f"**Docs Error**: {str(e)}"
-
-def parse_response(response_text):
-    """Robust response parser with fallbacks"""
-    sections = {'code': '', 'explanation': '', 'improvements': '', 'optimizations': ''}
-    
-    try:
-        if not response_text.strip():
-            return {key: "⚠️ No response available." for key in sections}
-        
-        code_match = re.search(r'### CORRECTED CODE\s*```.*?\n(.*?)```', response_text, re.DOTALL | re.IGNORECASE)
-        explanation_match = re.search(r'### ERROR EXPLANATION(.*?)(?:###|\Z)', response_text, re.DOTALL | re.IGNORECASE)
-        improvements_match = re.search(r'### ANALYSIS FINDINGS(.*?)(?:###|\Z)', response_text, re.DOTALL | re.IGNORECASE)
-        optimizations_match = re.search(r'### OPTIMIZATION RECOMMENDATIONS(.*?)(?:###|\Z)', response_text, re.DOTALL | re.IGNORECASE)
-        
-        sections['code'] = code_match.group(1).strip() if code_match else "No code corrections suggested"
-        sections['explanation'] = explanation_match.group(1).strip() if explanation_match else "No errors detected"
-        sections['improvements'] = improvements_match.group(1).strip() if improvements_match else "No additional findings"
-        sections['optimizations'] = optimizations_match.group(1).strip() if optimizations_match else "No optimization recommendations"
-        
-    except Exception as e:
-        st.error(f"Parsing error: {str(e)}")
-    
-    return sections
-
-st.title("🚀 AI Code Suite Pro")
+st.title("🚀 AI Code Debugger Pro")
 col1, col2 = st.columns([3, 1])
 
 if 'code' not in st.session_state:
@@ -144,12 +73,35 @@ with col2:
     analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
     template = st.selectbox("📁 Code Template", ["None", "Web API", "CLI", "GUI", "Microservice"])
 
+if st.button("🚀 Analyze Code", use_container_width=True):
+    if not code.strip():
+        st.error("⚠️ Please input code or upload a file")
+    else:
+        with st.spinner("🔬 Deep code analysis in progress..."):
+            start_time = datetime.now()
+            response = correct_code(code, lang.lower() if lang != "Auto-Detect" else "auto-detect")
+            process_time = (datetime.now() - start_time).total_seconds()
+            
+            st.session_state.history.append({'code': code, 'response': response, 'timestamp': start_time})
+        
+        if response.startswith("**API Error**"):
+            st.error(response)
+        else:
+            sections = parse_response(response)
+            st.success(f"✅ Analysis completed in {process_time:.2f}s")
+            tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Explanation", "💎 Optimizations"])
+            
+            with tab1:
+                st.subheader("Improved Code")
+                st.code(sections['code'], language=lang.lower())
+            
+            with tab2:
+                st.markdown(f"### Error Breakdown\n{sections['explanation']}")
+            
+            with tab3:
+                st.markdown(f"### Optimization Recommendations\n{sections['improvements']}")
+
 col3, col4, col5 = st.columns(3)
-with col3:
-    if st.button("🔍 Analyze Code"):
-        analysis_result = correct_code(code, lang, analysis_type)
-        st.session_state.analysis = parse_response(analysis_result)
-        st.write(st.session_state.analysis)
 with col4:
     if st.button("✨ Generate Code"):
         generated_code = generate_code_from_text(gen_prompt, lang, template)
