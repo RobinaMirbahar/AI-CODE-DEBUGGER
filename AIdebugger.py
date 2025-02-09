@@ -74,6 +74,7 @@ def parse_response(response_text):
 
     return sections
 
+
 # Streamlit UI
 st.title("🚀 AI Code Debugger Pro")
 col1, col2 = st.columns([3, 1])
