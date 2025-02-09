@@ -10,6 +10,9 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 def correct_code(code_snippet, language, analysis_type="Full Audit"):
     """Enhanced code analysis with multiple modes"""
     try:
+        if not code_snippet.strip():
+            return "⚠️ No code provided for analysis."
+        
         lang = language.lower() if language != "Auto-Detect" else "python"
         code_block = f"```{lang}\n{code_snippet}\n```"
         
@@ -43,13 +46,16 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(base_prompt)
-        return response.text
+        return response.text if response and response.text else "⚠️ No response from AI."
     except Exception as e:
         return f"**API Error**: {str(e)}"
 
 def generate_code_from_text(prompt_text, language, template=None):
     """AI-powered code generation"""
     try:
+        if not prompt_text.strip():
+            return "⚠️ No prompt provided for generation."
+        
         template_prompt = f" using {template} template" if template else ""
         prompt = f"""
         Generate {language} code{template_prompt} for:
@@ -63,13 +69,16 @@ def generate_code_from_text(prompt_text, language, template=None):
         """
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
-        return response.text
+        return response.text if response and response.text else "⚠️ No response from AI."
     except Exception as e:
         return f"**Generation Error**: {str(e)}"
 
 def generate_api_documentation(code_snippet, language):
     """Enhanced API documentation generator"""
     try:
+        if not code_snippet.strip():
+            return "⚠️ No code provided for documentation."
+        
         prompt = f"""
         Create structured API documentation for this {language} code:
         ```{language}
@@ -85,7 +94,7 @@ def generate_api_documentation(code_snippet, language):
         """
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
-        return response.text
+        return response.text if response and response.text else "⚠️ No response from AI."
     except Exception as e:
         return f"**Docs Error**: {str(e)}"
 
@@ -94,6 +103,9 @@ def parse_response(response_text):
     sections = {'code': '', 'explanation': '', 'improvements': '', 'optimizations': ''}
     
     try:
+        if not response_text.strip():
+            return {key: "⚠️ No response available." for key in sections}
+        
         code_match = re.search(r'### CORRECTED CODE\s*```.*?\n(.*?)```', response_text, re.DOTALL | re.IGNORECASE)
         explanation_match = re.search(r'### ERROR EXPLANATION(.*?)(?:###|\Z)', response_text, re.DOTALL | re.IGNORECASE)
         improvements_match = re.search(r'### ANALYSIS FINDINGS(.*?)(?:###|\Z)', response_text, re.DOTALL | re.IGNORECASE)
@@ -134,19 +146,18 @@ with col2:
 
 col3, col4, col5 = st.columns(3)
 with col3:
-    analyze_btn = st.button("🔍 Analyze Code")
+    if st.button("🔍 Analyze Code"):
+        analysis_result = correct_code(code, lang, analysis_type)
+        st.session_state.analysis = parse_response(analysis_result)
+        st.write(st.session_state.analysis)
 with col4:
-    gen_btn = st.button("✨ Generate Code")
+    if st.button("✨ Generate Code"):
+        generated_code = generate_code_from_text(gen_prompt, lang, template)
+        st.write(generated_code)
 with col5:
-    doc_btn = st.button("📚 Generate Docs")
+    if st.button("📚 Generate Docs"):
+        docs = generate_api_documentation(code, lang)
+        st.write(docs)
 
-if doc_btn:
-    if code.strip():
-        with st.spinner("📝 Generating documentation..."):
-            docs = generate_api_documentation(code, lang)
-            st.markdown(docs)
-            st.download_button("📥 Download Spec", docs, file_name="api_spec.yaml", mime="text/yaml")
-    else:
-        st.error("⚠️ Please input code to document")
-
-st.markdown("🔒 *Code processed securely via Google's AI APIs*")
+st.markdown("---")
+st.markdown("© 2025 AI Code Suite Pro - All Rights Reserved")
