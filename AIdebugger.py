@@ -18,7 +18,7 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         
         1. CORRECTED CODE with line numbers and change comments
         2. ERROR EXPLANATION with categorized errors and fixes
-        3. {analysis_type.upper()} ANALYSIS with relevant suggestions
+        3. BEST PRACTICES & RECOMMENDATIONS for improvement
         
         Format your response EXACTLY like this:
         
@@ -31,9 +31,9 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         - [Error 1]
         - [Error 2]
         
-        ### ANALYSIS FINDINGS
-        - [Finding 1]
-        - [Finding 2]
+        ### BEST PRACTICES & RECOMMENDATIONS
+        - [Recommendation 1]
+        - [Recommendation 2]
         """
         
         model = genai.GenerativeModel('gemini-pro')
@@ -54,32 +54,13 @@ def generate_code_from_text(prompt_text, language, template=None):
         1. Production-ready code
         2. Error handling
         3. Documentation
-        4. Test hooks
+        4. Security best practices
         """
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"**Generation Error**: {str(e)}"
-
-def generate_test_cases(code_snippet, language):
-    """Test case generation"""
-    try:
-        prompt = f"""
-        Create pytest tests for this {language} code:
-        ```{language}
-        {code_snippet}
-        ```
-        Include:
-        - Edge cases
-        - Mocking
-        - Parameterized tests
-        """
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"**Test Error**: {str(e)}"
 
 def generate_api_documentation(code_snippet, language):
     """API documentation generator"""
@@ -101,42 +82,23 @@ def generate_api_documentation(code_snippet, language):
     except Exception as e:
         return f"**Docs Error**: {str(e)}"
 
-def code_chat_assistant(code_snippet, question):
-    """Code-focused chat AI"""
-    try:
-        prompt = f"""
-        As code tutor, explain:
-        ```python
-        {code_snippet}
-        ```
-        Question: {question}
-        - Simplify concepts
-        - Give examples
-        - Highlight best practices
-        """
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"**Chat Error**: {str(e)}"
-
 def parse_response(response_text):
     """Robust response parser with fallbacks"""
-    sections = {'code': '', 'explanation': '', 'improvements': ''}
-    
+    sections = {'code': '', 'explanation': '', 'recommendations': ''}
+
     try:
         # Case-insensitive regex patterns with fallback matches
         code_match = re.search(r'### CORRECTED CODE\s*```.*?\n(.*?)```', response_text, re.DOTALL | re.IGNORECASE)
         explanation_match = re.search(r'### ERROR EXPLANATION(.*?)(?:###|\Z)', response_text, re.DOTALL | re.IGNORECASE)
-        improvements_match = re.search(r'### ANALYSIS FINDINGS(.*?)(?:###|\Z)', response_text, re.DOTALL | re.IGNORECASE)
-        
+        recommendations_match = re.search(r'### BEST PRACTICES & RECOMMENDATIONS(.*?)(?:###|\Z)', response_text, re.DOTALL | re.IGNORECASE)
+
         sections['code'] = code_match.group(1).strip() if code_match else "No code corrections suggested"
         sections['explanation'] = explanation_match.group(1).strip() if explanation_match else "No errors detected"
-        sections['improvements'] = improvements_match.group(1).strip() if improvements_match else "No additional findings"
-        
+        sections['recommendations'] = recommendations_match.group(1).strip() if recommendations_match else "No best practices available"
+
     except Exception as e:
         st.error(f"Parsing error: {str(e)}")
-    
+
     return sections
 
 # Streamlit UI Configuration
@@ -144,18 +106,35 @@ st.set_page_config(page_title="AI Code Debugger Pro", page_icon="🚀", layout="
 
 st.markdown("""
     <style>
-        .stMarkdown pre {border-radius: 10px; padding: 15px!important;}
-        .stTextArea textarea {font-family: monospace !important;}
-        .highlight {border-left: 3px solid #4CAF50; padding-left: 10px;}
-        .stButton>button {transition: all 0.3s ease;}
-        .stButton>button:hover {transform: scale(1.05);}
+        .stMarkdown pre {
+            border-radius: 10px; 
+            padding: 15px!important;
+            white-space: pre-wrap; /* Ensures text wraps properly */
+            word-wrap: break-word; /* Prevents text from being cut */
+        }
+        .stTextArea textarea {
+            font-family: monospace !important;
+            white-space: pre-wrap; /* Ensures text doesn't overflow */
+        }
+        .stTabs [role="tablist"] {
+            flex-wrap: wrap; /* Allows tab labels to wrap */
+        }
+        .highlight {
+            border-left: 3px solid #4CAF50; 
+            padding-left: 10px;
+        }
+        .stButton>button {
+            transition: all 0.3s ease;
+            min-width: 150px; /* Prevents buttons from shrinking too much */
+        }
+        .stButton>button:hover {
+            transform: scale(1.05);
+        }
     </style>
 """, unsafe_allow_html=True)
 
 if 'history' not in st.session_state:
     st.session_state.history = []
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
 if 'code' not in st.session_state:
     st.session_state.code = ""
 
@@ -169,48 +148,39 @@ with col1:
             st.session_state.code = uploaded_file.read().decode("utf-8")
         except UnicodeDecodeError:
             st.error("⚠️ Invalid file format - please upload text-based source files")
-    
-    code = st.text_area("📝 Code Editor", height=300, 
-                      value=st.session_state.code,
-                      help="Write or paste your code here")
-    
-    gen_prompt = st.text_area("💡 Code Generation Prompt", height=100,
-                            placeholder="Describe functionality to generate...")
+
+    code = st.text_area("📝 Code Editor", height=300, value=st.session_state.code, help="Write or paste your code here")
+
+    gen_prompt = st.text_area("💡 Code Generation Prompt", height=100, placeholder="Describe functionality to generate...")
 
 with col2:
-    lang = st.selectbox("🌐 Language", ["Auto-Detect", "Python", "JavaScript", 
-                                      "Java", "C++", "C#", "Go", "Rust"])
+    lang = st.selectbox("🌐 Language", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"])
     analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
     template = st.selectbox("📁 Code Template", ["None", "Web API", "CLI", "GUI", "Microservice"])
 
-col3, col4, col5 = st.columns(3)
+col3, col4 = st.columns(2, gap="medium")
 with col3:
     analyze_btn = st.button("🔍 Analyze Code", use_container_width=True)
 with col4:
     gen_btn = st.button("✨ Generate Code", use_container_width=True)
-with col5:
-    doc_btn = st.button("📚 Generate Docs", use_container_width=True)
 
 if analyze_btn:
     if code.strip():
         with st.spinner("🧠 Analyzing code..."):
             response = correct_code(code, lang, analysis_type)
             sections = parse_response(response)
-            
-            tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Error Explanation", "🔍 Analysis Findings"])
-            
+
+            tab1, tab2, tab3 = st.tabs(["🛠 Corrected Code", "📖 Error Explanation", "🔍 Best Practices"])
+
             with tab1:
                 st.code(sections['code'], language=lang.lower())
-                if st.button("🧪 Generate Tests"):
-                    tests = generate_test_cases(code, lang)
-                    st.code(tests, language='python')
-            
+
             with tab2:
-                st.markdown(f"```\n{sections['explanation']}\n```")
-            
+                st.text_area("📖 Error Explanation", sections['explanation'], height=200)
+
             with tab3:
-                st.markdown(f"```\n{sections['improvements']}\n```")
-            
+                st.text_area("🔍 Best Practices & Recommendations", sections['recommendations'], height=200)
+
             st.session_state.history.append({
                 'code': code,
                 'response': response,
@@ -224,34 +194,7 @@ if gen_btn:
         with st.spinner("🚀 Generating code..."):
             generated = generate_code_from_text(gen_prompt, lang, template)
             st.code(generated, language=lang.lower())
-            if st.button("💾 Save to Editor"):
-                st.session_state.code = generated
-                st.rerun()
     else:
         st.error("⚠️ Please describe the functionality")
 
-if doc_btn:
-    if code.strip():
-        with st.spinner("📝 Generating documentation..."):
-            docs = generate_api_documentation(code, lang)
-            st.markdown(docs)
-            st.download_button("📥 Download Spec", docs, 
-                             file_name="api_spec.yaml",
-                             mime="text/yaml")
-    else:
-        st.error("⚠️ Please input code to document")
-
-with st.sidebar:
-    st.subheader("💬 Code Chat")
-    user_question = st.text_input("Ask about the code:")
-    if user_question and code.strip():
-        response = code_chat_assistant(code, user_question)
-        st.markdown(f"**AI:**\n{response}")
-    
-    st.subheader("📚 History")
-    for idx, item in enumerate(st.session_state.history[-3:]):
-        with st.expander(f"Analysis {idx+1}"):
-            st.code(item['code'][:200] + "...")
-
-st.markdown("---")
 st.markdown("🔒 *Code processed securely via Google's AI APIs*")
