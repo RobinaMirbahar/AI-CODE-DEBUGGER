@@ -13,10 +13,9 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
     """Enhanced code analysis with multiple modes"""
     try:
         if not code_snippet.strip():
-            return "⚠️ No code provided for analysis."
+            return {"error": "⚠️ No code provided for analysis."}
         
         lang = language.lower() if language != "Auto-Detect" else auto_detect_language(code_snippet)
-        code_block = f"```{lang}\n{code_snippet}\n```"
         
         base_prompt = {
             "prompt": f"""
@@ -35,6 +34,26 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         return json.loads(response.text) if response and response.text else {"error": "No response from AI."}
     except Exception as e:
         return {"error": f"API Error: {str(e)}"}
+
+def generate_code_from_text(prompt, language):
+    """Generates code based on user-provided description."""
+    if not prompt.strip():
+        return "⚠️ Please enter a prompt to generate code."
+    
+    gen_prompt = f"Generate a {language} script based on this description: {prompt}"
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(gen_prompt)
+    return response.text if response and response.text else "⚠️ No response from AI."
+
+def generate_api_documentation(code_snippet, language):
+    """Generates documentation for provided code."""
+    if not code_snippet.strip():
+        return "⚠️ Please provide code for documentation."
+    
+    doc_prompt = f"Generate API documentation for this {language} code:\n```{language}\n{code_snippet}\n```"
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(doc_prompt)
+    return response.text if response and response.text else "⚠️ No response from AI."
 
 def auto_detect_language(code):
     """Basic language detection based on file structure"""
@@ -92,13 +111,14 @@ with col1:
             st.error("⚠️ Invalid file format - please upload text-based source files")
     
     code = st.text_area("📝 Code Editor", height=300, value=st.session_state.code)
+    gen_prompt = st.text_area("💡 Code Generation Prompt", height=100, placeholder="Describe functionality to generate...")
     if st.button("▶ Run Code") and auto_detect_language(code) == "python":
         st.text(run_python_code(code))
     
 with col2:
     lang = st.selectbox("🌐 Language", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"])
     analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
-    
+
 if st.button("🚀 Analyze Code"):
     if not code.strip():
         st.error("⚠️ Please input code or upload a file")
@@ -128,11 +148,17 @@ if st.button("🚀 Analyze Code"):
             
             with tab2:
                 st.markdown(f"### Error Breakdown\n{explanation}")
-                st.button("📋 Copy Explanation", on_click=lambda: st.session_state.update({"clipboard": explanation}))
             
             with tab3:
                 st.markdown(f"### Optimization Recommendations\n{improvements}")
-                st.button("📋 Copy Recommendations", on_click=lambda: st.session_state.update({"clipboard": improvements}))
+
+if st.button("✨ Generate Code"):
+    generated_code = generate_code_from_text(gen_prompt, lang)
+    st.text_area("Generated Code", generated_code, height=200)
+
+if st.button("📚 Generate Docs"):
+    docs = generate_api_documentation(code, lang)
+    st.text_area("Generated Documentation", docs, height=200)
 
 st.markdown("---")
 st.markdown("© 2025 AI Code Debugger Pro - All Rights Reserved - Robina Mirbahar")
