@@ -19,9 +19,10 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         
         base_prompt = f"""
         Analyze this {lang} code and provide structured JSON output containing:
-        - Corrected code
-        - Error explanations
-        - Optimization recommendations
+        - "corrected_code": Corrected code snippet
+        - "error_explanation": Explanation of errors found
+        - "optimization_recommendations": Suggestions for improvements
+        Ensure the response is valid JSON.
         """
         
         model = genai.GenerativeModel('gemini-pro')
@@ -33,7 +34,7 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         try:
             return json.loads(response.text)
         except json.JSONDecodeError:
-            return {"error": "⚠️ Gemini API returned an invalid JSON response."}
+            return {"error": "⚠️ Gemini API returned an invalid JSON response. Here is the raw output:", "raw_response": response.text}
     except Exception as e:
         return {"error": f"⚠️ API Error: {str(e)}"}
 
@@ -134,6 +135,8 @@ if st.button("🚀 Analyze Code"):
         
         if "error" in response:
             st.error(response["error"])
+            if "raw_response" in response:
+                st.text_area("Raw Response", response["raw_response"], height=200)
         else:
             corrected_code = response["corrected_code"]
             explanation = response["error_explanation"]
