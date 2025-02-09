@@ -151,4 +151,4 @@ with col5:
         st.write(docs)
 
 st.markdown("---")
-st.markdown("© 2025 AI Code Suite Pro - All Rights Reserved")
+st.markdown("© 2025 AI Code Debugger Pro- All Rights Reserved-Robina Mirbahar")
