@@ -50,6 +50,23 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
     except Exception as e:
         return f"**API Error**: {str(e)}"
 
+def parse_response(response_text):
+    """Parses AI response into structured sections."""
+    sections = {"code": "", "explanation": "", "improvements": ""}
+    
+    corrected_code_match = re.search(r'### CORRECTED CODE\n```[a-zA-Z0-9]+\n(.*?)```', response_text, re.DOTALL)
+    explanation_match = re.search(r'### ERROR EXPLANATION\n(.*?)\n\n', response_text, re.DOTALL)
+    improvements_match = re.search(r'### OPTIMIZATION RECOMMENDATIONS\n(.*?)$', response_text, re.DOTALL)
+    
+    if corrected_code_match:
+        sections['code'] = corrected_code_match.group(1).strip()
+    if explanation_match:
+        sections['explanation'] = explanation_match.group(1).strip()
+    if improvements_match:
+        sections['improvements'] = improvements_match.group(1).strip()
+    
+    return sections
+
 st.title("🚀 AI Code Debugger Pro")
 col1, col2 = st.columns([3, 1])
 
