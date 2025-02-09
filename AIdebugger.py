@@ -26,9 +26,16 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
         
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(base_prompt)
-        return json.loads(response.text) if response and response.text else {"error": "No response from AI."}
+        
+        if not response or not hasattr(response, "text") or not response.text:
+            return {"error": "⚠️ Empty response from Gemini API."}
+        
+        try:
+            return json.loads(response.text)
+        except json.JSONDecodeError:
+            return {"error": "⚠️ Gemini API returned an invalid JSON response."}
     except Exception as e:
-        return {"error": f"API Error: {str(e)}"}
+        return {"error": f"⚠️ API Error: {str(e)}"}
 
 def generate_code_from_text(prompt, language):
     """Generates code based on user-provided description."""
@@ -146,14 +153,6 @@ if st.button("🚀 Analyze Code"):
             
             with tab3:
                 st.markdown(f"### Optimization Recommendations\n{improvements}")
-
-if st.button("✨ Generate Code"):
-    generated_code = generate_code_from_text(gen_prompt, lang)
-    st.text_area("Generated Code", generated_code, height=200)
-
-if st.button("📚 Generate Docs"):
-    docs = generate_api_documentation(code, lang)
-    st.text_area("Generated Documentation", docs, height=200)
 
 st.markdown("---")
 st.markdown("© 2025 AI Code Debugger Pro - All Rights Reserved - Robina Mirbahar")
