@@ -96,11 +96,14 @@ if st.button("🚀 Analyze Code"):
             match_optimization = re.search(r"### OPTIMIZATION RECOMMENDATIONS\n(.*?)\n###", response, re.DOTALL)
             
             with tab1:
-                st.code(match_corrected.group(1) if match_corrected else "No corrected code found.", language=lang.lower())
+                with st.spinner("📄 Formatting corrected code..."):
+                    st.code(match_corrected.group(1) if match_corrected else "No corrected code found.", language=lang.lower())
             with tab2:
-                st.markdown(match_explanation.group(1) if match_explanation else "No explanation found.")
+                with st.spinner("📑 Preparing error explanation..."):
+                    st.markdown(match_explanation.group(1) if match_explanation else "No explanation found.")
             with tab3:
-                st.markdown(match_optimization.group(1) if match_optimization else "No optimization recommendations found.")
+                with st.spinner("🚀 Providing optimization tips..."):
+                    st.markdown(match_optimization.group(1) if match_optimization else "No optimization recommendations found.")
 
 if st.button("✨ Generate Code"):
     if not gen_prompt.strip():
@@ -117,22 +120,6 @@ if st.button("📄 Generate Documentation"):
         with st.spinner("📖 Generating Documentation..."):
             documentation = generate_api_documentation(code, lang)
             st.markdown(documentation)
-
-
-# Sample Buggy Code
-buggy_code = """
-def divide_numbers(a, b):
-    return a / b  # No check for division by zero
-
-def reverse_string(s):
-    return s[::-1  # Syntax error, missing bracket
-
-print("Result:", divide_numbers(10, 0))  # Division by zero
-print(reverse_string("hello"))  # Syntax error
-"""
-st.markdown("### 🐞 Test with Buggy Code")
-st.code(buggy_code, language="python")
-
 
 # Footer
 st.markdown("""
