@@ -27,7 +27,7 @@ def parse_ai_response(response_text):
         'optimizations': []
     }
 
-    # Extract corrected code with proper code block handling
+    # Extract corrected code
     code_match = re.search(r'```[a-z]*\n(.*?)```', response_text, re.DOTALL)
     if code_match:
         parsed['corrected_code'] = code_match.group(1).strip()
@@ -62,7 +62,8 @@ def analyze_code(code_snippet, language, analysis_type="Full Audit"):
     Format response as:
     ### CORRECTED CODE
     ```{lang}
-    [Corrected code with line numbers]
+    [Line 1] Corrected code
+    [Line 2] With explanations
     ```
     
     ### ERROR EXPLANATION
@@ -140,19 +141,13 @@ st.markdown("""
     }
     .result-card {
         background: #1E293B;
-        color: #F8FAFC !important;  /* Force text color */
+        color: #F8FAFC !important;
         border-radius: 8px;
         padding: 1rem;
         border: 1px solid #334155;
         margin: 0.5rem 0;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    
-    .result-card code {
-        color: #7C3AED !important;  /* Purple for code elements */
-    }
-    
-    /* Better contrast for optimization items */
     .optimization-item {
         background: #2D3748;
         color: #E2E8F0;
@@ -227,15 +222,16 @@ with main_col:
                         for finding in st.session_state.results['analysis_findings']:
                             st.markdown(f"- 📌 {finding}")
 
-             with col2:
-            with st.container(border=True):  # Line 230
-                st.markdown("#### ⚡ Optimizations")  # Now properly indented
-                for opt in st.session_state.results['optimizations']:
-                    st.markdown(f"""
-                    <div class="optimization-item">
-                    🚀 {opt}
-                </div>
-                """, unsafe_allow_html=True)
+                with col2:
+                    # Fixed Indentation Here
+                    with st.container(border=True):
+                        st.markdown("#### ⚡ Optimizations")
+                        for opt in st.session_state.results['optimizations']:
+                            st.markdown(f"""
+                            <div class="optimization-item">
+                                🚀 {opt}
+                            </div>
+                            """, unsafe_allow_html=True)
                     
                     with st.container(border=True):
                         st.markdown("#### 🛡️ Security Audit")
@@ -299,6 +295,6 @@ with st.expander("🧪 Sample Code Playground", expanded=False):
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #64748B; padding: 1.5rem">
-    🚀 Powered by Gemini AI | 🔒 Secure Code Analysis | v1.3.0
+    🚀 Powered by Gemini AI | 🔒 Secure Code Analysis | v1.3.1
 </div>
 """, unsafe_allow_html=True)
