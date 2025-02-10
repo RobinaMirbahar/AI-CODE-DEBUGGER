@@ -86,7 +86,47 @@ if st.button("🚀 Analyze Code"):
     else:
         with st.spinner("🔬 Analyzing Code..."):
             response = correct_code(code, lang, analysis_type)
-            st.markdown(response)
+            
+            # Parse response into sections
+            sections = re.split(r'### ', response)
+            parsed = {
+                'CORRECTED CODE': '',
+                'ERROR EXPLANATION': '',
+                'ANALYSIS FINDINGS': '',
+                'OPTIMIZATION RECOMMENDATIONS': ''
+            }
+            
+            for section in sections:
+                if any(key in section for key in parsed):
+                    key = section.split('\n')[0].strip()
+                    content = '\n'.join(section.split('\n')[1:]).strip()
+                    parsed[key] = content
+
+            # Create columns layout
+            col1, col2 = st.columns([2, 3])
+            
+            with col1:  # Errors & Analysis
+                if parsed['ERROR EXPLANATION']:
+                    with st.expander("🚨 Error Explanations", expanded=True):
+                        st.markdown(f"```\n{parsed['ERROR EXPLANATION']}\n```")
+                
+                if parsed['ANALYSIS FINDINGS']:
+                    with st.expander("🔍 Analysis Findings", expanded=True):
+                        st.markdown(parsed['ANALYSIS FINDINGS'])
+
+            with col2:  # Code & Optimizations
+                if parsed['CORRECTED CODE']:
+                    code_match = re.search(r'```.*?\n(.*?)\n```', 
+                                          parsed['CORRECTED CODE'], 
+                                          re.DOTALL)
+                    if code_match:
+                        corrected = code_match.group(1)
+                        st.markdown("#### ✅ Corrected Code")
+                        st.code(corrected, language=lang.lower())
+                
+                if parsed['OPTIMIZATION RECOMMENDATIONS']:
+                    with st.expander("⚡ Optimization Tips", expanded=True):
+                        st.markdown(parsed['OPTIMIZATION RECOMMENDATIONS'])
 
 if st.button("✨ Generate Code"):
     if not gen_prompt.strip():
