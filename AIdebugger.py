@@ -78,8 +78,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Main App Interface
-st.title("🧠 Code Architect Pro")
-st.markdown("### Enterprise-Grade Code Analysis & Generation")
+st.title("🧠 AI Code Debugger Pro")
+
 
 # Split Layout
 main_col, sidebar_col = st.columns([3, 1], gap="large")
