@@ -1,6 +1,7 @@
 import google.generativeai as genai
 import streamlit as st
 import re
+import os
 
 # Initialize Gemini API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -19,7 +20,7 @@ def handle_api_response(response):
     return response.text, None
 
 def parse_ai_response(response_text):
-    """Enhanced parser with proper code block extraction"""
+    """Parse structured AI response into categorized components"""
     parsed = {
         'corrected_code': '',
         'errors': [],
@@ -105,8 +106,70 @@ def analyze_code(code_snippet, language, analysis_type="Full Audit"):
     except Exception as e:
         return {"error": f"⚠️ Analysis failed: {str(e)}"}
 
+def generate_code_from_text(prompt, language, template):
+    """Generates code from user description with safety handling"""
+    if not prompt.strip():
+        return "⚠️ Enter a description."
+
+    try:
+        model = genai.GenerativeModel('gemini-pro',
+            safety_settings={
+                'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
+                'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+                'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+                'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
+            },
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=4000,
+                temperature=0.25)
+        )
+        query = f"Generate a {language} {template} based on: {prompt}"
+        response = model.generate_content(query)
+        response_text, error = handle_api_response(response)
+        return response_text if response_text else error
+        
+    except Exception as e:
+        return f"⚠️ Generation failed: {str(e)}"
+
+def generate_api_documentation(code_snippet, language):
+    """Generates API documentation with safety handling"""
+    if not code_snippet.strip():
+        return "⚠️ Provide code for documentation."
+
+    try:
+        model = genai.GenerativeModel('gemini-pro',
+            safety_settings={
+                'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
+                'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+                'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+                'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
+            },
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=4000,
+                temperature=0.25)
+        )
+        doc_prompt = f"""Generate comprehensive API documentation for this {language} code.
+        Include:
+        1. Module description
+        2. Function/method signatures
+        3. Parameters and return types
+        4. Example usage
+        5. Error handling
+        
+        Code:
+        ```{language}
+        {code_snippet}
+        ```
+        """
+        response = model.generate_content(doc_prompt)
+        response_text, error = handle_api_response(response)
+        return response_text if response_text else error
+        
+    except Exception as e:
+        return f"⚠️ Documentation failed: {str(e)}"
+
 # ========== Streamlit UI ==========
-st.set_page_config(page_title="AI Code Debugger Pro", layout="wide")
+st.set_page_config(page_title="AI Code Architect Pro", layout="wide")
 
 # Custom CSS for enhanced UI
 st.markdown("""
@@ -139,15 +202,6 @@ st.markdown("""
         border-radius: 16px;
         margin-bottom: 2rem;
     }
-    .result-card {
-        background: #1E293B;
-        color: #F8FAFC !important;
-        border-radius: 8px;
-        padding: 1rem;
-        border: 1px solid #334155;
-        margin: 0.5rem 0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
     .optimization-item {
         background: #2D3748;
         color: #E2E8F0;
@@ -165,8 +219,8 @@ if 'results' not in st.session_state:
 # Main Interface
 st.markdown("""
 <div class="header-container">
-    <h1 style="color:white; margin:0">🧠 AI Code Debugger Pro</h1>
-    <p style="color:#E0E7FF; margin:0"></p>
+    <h1 style="color:white; margin:0">🧠 AI Code Architect Pro</h1>
+    <p style="color:#E0E7FF; margin:0">Enterprise-Grade Code Analysis & Generation</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -223,7 +277,6 @@ with main_col:
                             st.markdown(f"- 📌 {finding}")
 
                 with col2:
-                    # Fixed Indentation Here
                     with st.container(border=True):
                         st.markdown("#### ⚡ Optimizations")
                         for opt in st.session_state.results['optimizations']:
@@ -242,7 +295,7 @@ with sidebar_col:
     with st.container(border=True):
         st.markdown("### ⚙️ Configuration")
         lang = st.selectbox("**🌐 Language**", 
-                          ["Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"],
+                          ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"],
                           index=0)
         analysis_type = st.radio("**🔍 Analysis Mode**",
                                 ["Full Audit", "Security Focus", "Performance Tuning"],
@@ -295,6 +348,6 @@ with st.expander("🧪 Sample Code Playground", expanded=False):
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #64748B; padding: 1.5rem">
-    🚀 Powered by Gemini AI | 🔒 Secure Code Analysis | v1.3.1
+    🚀 Powered by Gemini AI | 🔒 Secure Code Analysis | v1.4.0
 </div>
 """, unsafe_allow_html=True)
