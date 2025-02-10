@@ -165,8 +165,8 @@ if 'results' not in st.session_state:
 # Main Interface
 st.markdown("""
 <div class="header-container">
-    <h1 style="color:white; margin:0">🧠 AI Code Architect Pro</h1>
-    <p style="color:#E0E7FF; margin:0">Enterprise-Grade Code Analysis & Generation</p>
+    <h1 style="color:white; margin:0">🧠 AI Code Debugger Pro</h1>
+    <p style="color:#E0E7FF; margin:0"></p>
 </div>
 """, unsafe_allow_html=True)
 
