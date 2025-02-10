@@ -106,7 +106,7 @@ def analyze_code(code_snippet, language, analysis_type="Full Audit"):
         return {"error": f"⚠️ Analysis failed: {str(e)}"}
 
 # ========== Streamlit UI ==========
-st.set_page_config(page_title="AI Code Architect Pro", layout="wide")
+st.set_page_config(page_title="AI Code Debugger Pro", layout="wide")
 
 # Custom CSS for enhanced UI
 st.markdown("""
