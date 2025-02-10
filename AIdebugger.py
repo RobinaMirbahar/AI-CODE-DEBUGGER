@@ -140,10 +140,25 @@ st.markdown("""
     }
     .result-card {
         background: #1E293B;
+        color: #F8FAFC !important;  /* Force text color */
         border-radius: 8px;
-        padding: 1.5rem;
+        padding: 1rem;
         border: 1px solid #334155;
-        margin-bottom: 1.5rem;
+        margin: 0.5rem 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .result-card code {
+        color: #7C3AED !important;  /* Purple for code elements */
+    }
+    
+    /* Better contrast for optimization items */
+    .optimization-item {
+        background: #2D3748;
+        color: #E2E8F0;
+        padding: 12px;
+        border-radius: 6px;
+        margin: 8px 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -213,14 +228,14 @@ with main_col:
                             st.markdown(f"- 📌 {finding}")
 
                 with col2:
-                    with st.container(border=True):
-                        st.markdown("#### ⚡ Optimizations")
-                        for opt in st.session_state.results['optimizations']:
-                            st.markdown(f"""
-                            <div class="result-card">
-                                🚀 {opt}
-                            </div>
-                            """, unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("#### ⚡ Optimizations")
+        for opt in st.session_state.results['optimizations']:
+            st.markdown(f"""
+            <div class="optimization-item">
+                🚀 {opt}
+            </div>
+            """, unsafe_allow_html=True)
                     
                     with st.container(border=True):
                         st.markdown("#### 🛡️ Security Audit")
