@@ -118,6 +118,22 @@ if st.button("📄 Generate Documentation"):
             documentation = generate_api_documentation(code, lang)
             st.markdown(documentation)
 
+
+# Sample Buggy Code
+buggy_code = """
+def divide_numbers(a, b):
+    return a / b  # No check for division by zero
+
+def reverse_string(s):
+    return s[::-1  # Syntax error, missing bracket
+
+print("Result:", divide_numbers(10, 0))  # Division by zero
+print(reverse_string("hello"))  # Syntax error
+"""
+st.markdown("### 🐞 Test with Buggy Code")
+st.code(buggy_code, language="python")
+
+
 # Footer
 st.markdown("""
 ---
