@@ -227,15 +227,15 @@ with main_col:
                         for finding in st.session_state.results['analysis_findings']:
                             st.markdown(f"- 📌 {finding}")
 
-                with col2:
-    with st.container(border=True):
-        st.markdown("#### ⚡ Optimizations")
-        for opt in st.session_state.results['optimizations']:
-            st.markdown(f"""
-            <div class="optimization-item">
-                🚀 {opt}
-            </div>
-            """, unsafe_allow_html=True)
+             with col2:
+            with st.container(border=True):  # Line 230
+                st.markdown("#### ⚡ Optimizations")  # Now properly indented
+                for opt in st.session_state.results['optimizations']:
+                    st.markdown(f"""
+                    <div class="optimization-item">
+                    🚀 {opt}
+                </div>
+                """, unsafe_allow_html=True)
                     
                     with st.container(border=True):
                         st.markdown("#### 🛡️ Security Audit")
