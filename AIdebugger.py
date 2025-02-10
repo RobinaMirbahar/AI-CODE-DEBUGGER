@@ -87,6 +87,8 @@ if st.button("🚀 Analyze Code"):
     else:
         with st.spinner("🔬 Analyzing Code..."):
             response = correct_code(code, lang, analysis_type)
+            st.markdown(response)
+
             
             # Create tabs for better readability
             tab1, tab2, tab3 = st.tabs(["Corrected Code", "Explanation", "Optimizations"])
