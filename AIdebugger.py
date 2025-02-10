@@ -158,7 +158,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Main Interface
-st.title("🧠 AI Code Architect Pro")
+st.title("🧠 AI Code Debugger Pro")
 st.markdown("---")
 
 # Main Layout Columns
