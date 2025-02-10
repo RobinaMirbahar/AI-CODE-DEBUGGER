@@ -46,6 +46,28 @@ def correct_code(code_snippet, language, analysis_type="Full Audit"):
     response = model.generate_content(prompt)
     return response.text if response else "⚠️ No AI response."
 
+def generate_code_from_text(prompt, language, template):
+    """Generates code from user description"""
+    if not prompt.strip():
+        return "⚠️ Enter a description."
+
+    query = f"Generate a {language} {template} based on: {prompt}"
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(query)
+
+    return response.text if response else "⚠️ No AI response."
+
+def generate_api_documentation(code_snippet, language):
+    """Generates API documentation for given code"""
+    if not code_snippet.strip():
+        return "⚠️ Provide code for documentation."
+
+    doc_prompt = f"Generate API documentation for this {language} code:\n```{language}\n{code_snippet}\n```"
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(doc_prompt)
+
+    return response.text if response else "⚠️ No AI response."
+
 # Streamlit UI
 st.set_page_config(page_title="AI Code Debugger Pro", layout="wide")
 st.title("🚀 AI Code Debugger Pro")
@@ -53,8 +75,11 @@ st.title("🚀 AI Code Debugger Pro")
 uploaded_file = st.file_uploader("📤 Upload Code", type=["py", "js", "java", "cpp", "cs", "go"])
 code = st.text_area("📝 Code Editor", height=400, value=uploaded_file.read().decode("utf-8") if uploaded_file else "", key="code_editor")
 
+gen_prompt = st.text_area("💡 Code Generation Prompt", height=100, placeholder="Describe functionality to generate...")
+
 lang = st.selectbox("🌐 Language", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"])
 analysis_type = st.radio("🔍 Analysis Mode", ["Full Audit", "Quick Fix", "Security Review"])
+template = st.selectbox("📁 Code Template", ["None", "Web API", "CLI", "GUI", "Microservice"])
 
 def display_analysis():
     if not code.strip():
@@ -78,6 +103,22 @@ def display_analysis():
 
 if st.button("🚀 Analyze Code"):
     display_analysis()
+
+if st.button("✨ Generate Code"):
+    if not gen_prompt.strip():
+        st.error("⚠️ Enter a prompt.")
+    else:
+        with st.spinner("🛠 Generating Code..."):
+            generated_code = generate_code_from_text(gen_prompt, lang, template)
+            st.code(generated_code, language=lang.lower())
+
+if st.button("📄 Generate Documentation"):
+    if not code.strip():
+        st.error("⚠️ Provide code first.")
+    else:
+        with st.spinner("📖 Generating Documentation..."):
+            documentation = generate_api_documentation(code, lang)
+            st.markdown(documentation)
 
 # Sample Buggy Code
 buggy_code = """
