@@ -1,25 +1,16 @@
+import os
 import google.generativeai as genai
 import google.cloud.vision as vision
 import streamlit as st
 import re
-import io
+from io import BytesIO
 
-# ========== AI Code Debugger Workflow Integration ==========
-# 1. Code Input & Preprocessing
-# 2. Static Analysis
-# 3. Dynamic Analysis (Runtime Debugging)
-# 4. AI-Assisted Debugging
-# 5. Automated Testing
-# 6. Fix Suggestions & Auto-Refactoring
-# 7. Verification & Final Testing
-
-# Initialize Gemini API once
+# ===== Initialize APIs =====
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "path/to/your/service-account.json"
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-# Initialize Google Vision API client
 vision_client = vision.ImageAnnotatorClient()
 
-# ========== Constants & Configs ==========
+# ===== Constants & Configs =====
 SAFETY_SETTINGS = {
     'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
     'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
@@ -32,13 +23,12 @@ GENERATION_CONFIG = genai.types.GenerationConfig(
     temperature=0.25
 )
 
-# Initialize model once
 MODEL = genai.GenerativeModel('gemini-pro',
     safety_settings=SAFETY_SETTINGS,
     generation_config=GENERATION_CONFIG
 )
 
-# ========== Helper Functions ==========
+# ===== Helper Functions =====
 def handle_api_response(response):
     """Process API response with error handling"""
     if not response.parts:
@@ -51,34 +41,22 @@ def handle_api_response(response):
     return response.text, None
 
 def parse_code_blocks(response_text):
-    """Efficient code block parsing with regex"""
+    """Extracts code blocks from AI response"""
     return re.findall(r'```[a-z]*\n(.*?)```', response_text, re.DOTALL)
 
-def extract_text_from_image(image_file):
-    """Extract text from uploaded image using Google Vision API"""
-    content = image_file.read()
-    image = vision.Image(content=content)
-    response = vision_client.text_detection(image=image)
-    texts = response.text_annotations
-    return texts[0].description if texts else ""
-
-# ========== Core Debugging Functions ==========
-def analyze_code(code_snippet, language):
-    """Optimized analysis function with AI-assisted debugging"""
+def analyze_code(code_snippet, language="python"):
+    """Analyze and correct uploaded code."""
     if not code_snippet.strip():
         return {"error": "⚠️ No code provided"}
-
-    lang = language.lower() if language != "Auto-Detect" else "python"
     
-    prompt = f"""Analyze and debug this {lang} code:
-    ```{lang}
+    prompt = f"""Analyze and correct this {language} code:
+    ```{language}
     {code_snippet}
     ```
     Provide structured response with:
-    - Static analysis (syntax errors, linting, type checking)
-    - Runtime analysis (execution flow, error detection)
-    - AI-assisted debugging suggestions
-    - Optimized code refactoring
+    - Corrected code with comments
+    - Error explanations
+    - Optimization recommendations
     """
 
     try:
@@ -88,78 +66,87 @@ def analyze_code(code_snippet, language):
         return {"error": f"⚠️ Analysis failed: {str(e)}"}
 
 def handle_response(response):
-    """Centralized response handler"""
+    """Handles AI-generated response."""
     response_text, error = handle_api_response(response)
-    return error_response(error) if error else parse_response(response_text)
-
-def error_response(error):
-    """Standard error formatting"""
-    return {"error": error}
+    return {"error": error} if error else parse_response(response_text)
 
 def parse_response(response_text):
-    """Efficient response parsing with structured debugging workflow"""
+    """Extracts structured results from AI response."""
     code_blocks = parse_code_blocks(response_text)
-    sections = re.split(r'### \w+', response_text)
-    
     return {
         'corrected_code': code_blocks[0].strip() if code_blocks else '',
-        'static_analysis': extract_items(sections, 'STATIC ANALYSIS'),
-        'runtime_analysis': extract_items(sections, 'RUNTIME ANALYSIS'),
-        'debugging_suggestions': extract_items(sections, 'AI-ASSISTED DEBUGGING'),
-        'optimizations': extract_items(sections, 'CODE REFACTORING')
+        'errors': extract_items(response_text, 'ERROR EXPLANATION'),
+        'optimizations': extract_items(response_text, 'OPTIMIZATION RECOMMENDATIONS')
     }
 
-def extract_items(sections, header):
-    """Efficient section item extraction"""
+def extract_items(text, header):
+    """Extracts list items under specific headers."""
+    sections = re.split(r'### \w+', text)
     for section in sections:
         if header in section:
             return [line.strip() for line in section.split('\n') if line.strip()]
     return []
 
-# ========== UI Components ==========
+def extract_text_from_image(image_bytes):
+    """Uses Vision API to extract text from an uploaded image."""
+    image = vision.Image(content=image_bytes)
+    response = vision_client.text_detection(image=image)
+    texts = response.text_annotations
+    return texts[0].description if texts else ""
+
+# ===== UI Components =====
 def main_content():
-    """Main content area components"""
+    """Main UI content"""
     with st.container():
         uploaded_file = st.file_uploader("📤 Upload Code File or Image", type=["py", "js", "java", "cpp", "cs", "go", "png", "jpg", "jpeg"])
+        code = ""
         
-        if uploaded_file is not None:
-            if uploaded_file.type in ["image/png", "image/jpeg"]:
-                extracted_text = extract_text_from_image(uploaded_file)
-                st.text_area("Extracted Code", extracted_text, height=400)
+        if uploaded_file:
+            file_type = uploaded_file.type
+            file_bytes = uploaded_file.read()
+            
+            if "image" in file_type:
+                st.info("Extracting text from image...")
+                code = extract_text_from_image(file_bytes)
             else:
-                code = uploaded_file.getvalue().decode()
-                st.text_area("📝 Editor", code, height=400)
+                code = file_bytes.decode("utf-8")
         
-        if st.button("🚀 Debug Code", use_container_width=True) and extracted_text.strip():
+        code_snippet = st.text_area("📝 Editor", value=code, height=400, placeholder="Paste code here...")
+        if st.button("🚀 Analyze", use_container_width=True) and code_snippet.strip():
             with st.spinner("Analyzing..."):
-                st.session_state.results = analyze_code(extracted_text, "Python")
+                st.session_state.results = analyze_code(code_snippet, "Python")
 
 def sidebar_content():
-    """Sidebar components"""
+    """Sidebar settings"""
     with st.container(border=True):
         st.markdown("### ⚙️ Settings")
-        lang = st.selectbox("Language", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"])
-        
-        if st.button("💡 Generate Code", help="Describe functionality in main input"):
-            # Implement AI code generation logic
-            pass
+        st.selectbox("Language", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust"])
 
-# ========== App Initialization ==========
+# ===== Initialize App =====
 def init_app():
-    """Initialize Streamlit app"""
+    """Initialize Streamlit App"""
     st.set_page_config("AI Code Debugger Pro", layout="wide")
     st.markdown(APP_CSS, unsafe_allow_html=True)
     
     if 'results' not in st.session_state:
         st.session_state.results = None
-
-    st.markdown(HEADER_HTML, unsafe_allow_html=True)
     
+    st.markdown(HEADER_HTML, unsafe_allow_html=True)
     main_col, sidebar_col = st.columns([3, 1])
     with main_col:
         main_content()
     with sidebar_col:
         sidebar_content()
+
+# ===== Styling =====
+APP_CSS = """<style>
+    .main { background: #0F172A; color: #F8FAFC; }
+    .stCodeBlock { border-radius: 8px; background: #1E293B !important; }
+</style>"""
+
+HEADER_HTML = """<div style="background:linear-gradient(135deg,#7C3AED,#6D28D9);padding:2rem;border-radius:16px">
+    <h1 style="color:white;margin:0">🧠 AI Code Debugger Pro</h1>
+</div>"""
 
 if __name__ == "__main__":
     init_app()
