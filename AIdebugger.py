@@ -86,7 +86,7 @@ credentials = set_google_credentials()
 
 # 📌 Streamlit App UI
 st.title("AI Code Debugger with Google Vision & Gemini API")
-st.write("Upload an image of handwritten or printed code, or a code file, and it will be analyzed for errors and optimization.")
+st.write("Upload an image of handwritten or printed code, upload a code file, or paste code manually for debugging and optimization.")
 
 # ✅ AI Assistant
 ai_assistant()
@@ -107,9 +107,13 @@ if uploaded_image is not None:
         st.subheader("🔍 AI Debugging Analysis:")
         st.write(analysis_result)
         
-        # ✅ Add paste code functionality
-        if st.button("Paste Code for Editing"):
-            st.text_area("Edit Code:", value=extracted_code, height=200)
+        # ✅ Paste code functionality
+        st.subheader("Paste and Edit Code")
+        pasted_code = st.text_area("Edit Code:", value=extracted_code, height=200)
+        if st.button("Analyze Pasted Code"):
+            pasted_analysis = analyze_code(pasted_code, language)
+            st.subheader("🔍 AI Debugging Analysis for Pasted Code:")
+            st.write(pasted_analysis)
     else:
         st.warning("No text found in the image.")
 
@@ -131,6 +135,18 @@ if uploaded_code_file is not None:
     st.subheader("🔍 AI Debugging Analysis:")
     st.write(analysis_result)
     
-    # ✅ Add paste code functionality
-    if st.button("Paste Code for Editing"):
-        st.text_area("Edit Code:", value=code_text, height=200)
+    # ✅ Paste code functionality
+    st.subheader("Paste and Edit Code")
+    pasted_code = st.text_area("Edit Code:", value=code_text, height=200)
+    if st.button("Analyze Pasted Code"):
+        pasted_analysis = analyze_code(pasted_code, language)
+        st.subheader("🔍 AI Debugging Analysis for Pasted Code:")
+        st.write(pasted_analysis)
+
+# ✅ Paste Code Manually
+st.subheader("🔹 Manually Paste Code for Debugging")
+pasted_code_manual = st.text_area("Paste Your Code Here:", height=200)
+if st.button("Analyze Manual Code"):
+    manual_analysis = analyze_code(pasted_code_manual)
+    st.subheader("🔍 AI Debugging Analysis for Manual Code:")
+    st.write(manual_analysis)
