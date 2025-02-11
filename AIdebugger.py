@@ -41,12 +41,12 @@ def analyze_image(image_file, credentials):
     return None
 
 # ✅ Analyze and debug code using Gemini API with benchmark evaluation
-def analyze_code(code_snippet):
+def analyze_code(code_snippet, language="python"):
     if not code_snippet.strip():
         return {"error": "⚠️ No code provided"}
     
-    prompt = f"""Analyze and correct this Python code:
-    ```python
+    prompt = f"""Analyze and correct this {language} code:
+    ```{language}
     {code_snippet}
     ```
     Provide structured response with:
@@ -71,7 +71,7 @@ credentials = set_google_credentials()
 
 # 📌 Streamlit App UI
 st.title("AI Code Debugger with Google Vision & Gemini API")
-st.write("Upload an image of handwritten or printed code, or a Python file, and it will be analyzed for errors and optimization.")
+st.write("Upload an image of handwritten or printed code, or a code file, and it will be analyzed for errors and optimization.")
 
 # ✅ Upload Image File
 uploaded_image = st.file_uploader("Upload a code image (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
@@ -81,21 +81,30 @@ if uploaded_image is not None:
         st.subheader("Extracted Code from Image:")
         st.code(extracted_code, language="python")  
         
+        # ✅ Select programming language
+        language = st.selectbox("Select Code Language", ["python", "java", "javascript", "c", "cpp", "go", "ruby", "php"])
+        
         # ✅ Debug extracted code using Gemini API
-        analysis_result = analyze_code(extracted_code)
+        analysis_result = analyze_code(extracted_code, language)
         st.subheader("🔍 AI Debugging Analysis:")
         st.write(analysis_result)
     else:
         st.warning("No text found in the image.")
 
 # ✅ Upload Code File (Optional)
-uploaded_code_file = st.file_uploader("Upload a Python file for debugging", type=["py"])
+uploaded_code_file = st.file_uploader("Upload a code file for debugging", type=["py", "java", "js", "c", "cpp", "go", "rb", "php"])
 if uploaded_code_file is not None:
     code_text = uploaded_code_file.read().decode("utf-8")
     st.subheader("Uploaded Code:")
-    st.code(code_text, language="python")
+    
+    # ✅ Detect language based on file extension
+    extension = uploaded_code_file.name.split(".")[-1]
+    language_map = {"py": "python", "java": "java", "js": "javascript", "c": "c", "cpp": "cpp", "go": "go", "rb": "ruby", "php": "php"}
+    language = language_map.get(extension, "python")
+    
+    st.code(code_text, language=language)
     
     # ✅ Debug uploaded code using Gemini API
-    analysis_result = analyze_code(code_text)
+    analysis_result = analyze_code(code_text, language)
     st.subheader("🔍 AI Debugging Analysis:")
     st.write(analysis_result)
