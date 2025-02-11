@@ -28,6 +28,15 @@ MODEL = genai.GenerativeModel('gemini-pro',
     generation_config=GENERATION_CONFIG
 )
 
+# ✅ AI Assistant to help users
+def ai_assistant():
+    st.sidebar.title("AI Assistant")
+    st.sidebar.write("Ask me anything about debugging and coding!")
+    user_query = st.sidebar.text_input("Your question:")
+    if user_query:
+        response = MODEL.generate_content(f"Provide guidance for: {user_query}")
+        st.sidebar.write(response.text if response else "⚠️ No response from AI")
+
 # ✅ Analyze image for code extraction
 def analyze_image(image_file, credentials):
     vision_client = vision.ImageAnnotatorClient(credentials=credentials)
@@ -58,10 +67,16 @@ def analyze_code(code_snippet, language="python"):
     1. **Accuracy** (Does the fix match expected results?)
     2. **Completeness** (Are all errors addressed?)
     3. **Clarity** (Are explanations understandable?)
-    Provide a final benchmark score out of 30."""
+    Provide a final benchmark score out of 30.
+    If the score is below 20, retry analysis with a refined approach emphasizing missing areas."""
     
     try:
         response = MODEL.generate_content(prompt)
+        if response and "benchmark score" in response.text.lower():
+            score = int(response.text.split("benchmark score:")[-1].strip().split("/30")[0])
+            if score < 20:
+                st.warning("🔄 Reanalyzing the code for improvements...")
+                response = MODEL.generate_content(prompt + "\n\nPlease improve the accuracy, completeness, and clarity further.")
         return response.text if response else "⚠️ No response from Gemini API"
     except Exception as e:
         return {"error": f"⚠️ Analysis failed: {str(e)}"}
@@ -72,6 +87,9 @@ credentials = set_google_credentials()
 # 📌 Streamlit App UI
 st.title("AI Code Debugger with Google Vision & Gemini API")
 st.write("Upload an image of handwritten or printed code, or a code file, and it will be analyzed for errors and optimization.")
+
+# ✅ AI Assistant
+aisistant()
 
 # ✅ Upload Image File
 uploaded_image = st.file_uploader("Upload a code image (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
