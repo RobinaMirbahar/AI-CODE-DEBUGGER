@@ -62,28 +62,35 @@ def analyze_code(code_snippet, language="python"):
     if not code_snippet.strip():
         return {"error": "⚠️ No code provided"}
     
+    execution_result = execute_code(code_snippet, language)
+    
+    if "Error" not in execution_result and "Exception" not in execution_result:
+        return {
+            "bugs": "✅ No issues detected in the code.",
+            "fix": "No fixes needed as the code is correctly implemented.",
+            "corrected_code": "The uploaded code is already correct. No modifications were necessary.",
+            "execution_result": execution_result,
+            "optimization": "No further optimizations required."
+        }
+    
     prompt = f"""Analyze and correct this {language} code:
     ```{language}
     {code_snippet}
     ```
-    Provide structured response with:
-    - Bugs and issues in the code
-    - How to fix them
-    - Fixed code (properly formatted)
-    - Execution results (if applicable)
-    - Optimization recommendations
+    Provide structured JSON output:
+    {{
+        "bugs": "Identified issues in the code",
+        "fix": "Steps to fix the issues",
+        "corrected_code": "Fixed version of the code",
+        "execution_result": "Expected execution results",
+        "optimization": "Suggested improvements"
+    }}
     """
     try:
         response = MODEL.generate_content(prompt)
-        corrected_code = response.text if response else "⚠️ No response from AI"
-        execution_result = execute_code(corrected_code, language)
-        return {
-            "bugs": "🔍 Identified issues in the code",
-            "fix": "🛠️ Steps to fix the issues",
-            "corrected_code": corrected_code,
-            "execution_result": execution_result,
-            "optimization": "⚡ Suggested improvements for efficiency"
-        }
+        structured_response = json.loads(response.text) if response else {}
+        structured_response["execution_result"] = execute_code(structured_response.get("corrected_code", ""), language)
+        return structured_response
     except Exception as e:
         return {"error": f"⚠️ Analysis failed: {str(e)}"}
 
@@ -139,19 +146,3 @@ if uploaded_code_file is not None:
     analysis_result = analyze_code(code_text, language)
     st.subheader("🔍 AI Debugging Analysis:")
     st.write(analysis_result)
-
-# Manual Code Debugging Feature
-st.subheader("✏️ Manually Paste Code for Debugging")
-st.write("Paste your code below and let AI analyze and fix it.")
-pasted_code_manual = st.text_area("Paste Your Code Here:", height=200)
-if st.button("Analyze Manual Code"):
-    manual_analysis = analyze_code(pasted_code_manual)
-    st.subheader("🔍 AI Debugging Analysis for Manual Code:")
-    st.write(manual_analysis)
-
-# Workflow Guide
-st.sidebar.subheader("📌 How to Use This Tool")
-st.sidebar.write("1️⃣ **Upload an image** with handwritten/printed code.")
-st.sidebar.write("2️⃣ **Upload a code file** in Python, Java, or JavaScript.")
-st.sidebar.write("3️⃣ **Paste code manually** for instant AI analysis.")
-st.sidebar.write("4️⃣ **View AI debugging insights** and execution results.")
