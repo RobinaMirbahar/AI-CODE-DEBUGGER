@@ -83,6 +83,18 @@ def analyze_code(code_snippet, language="python"):
     except Exception as e:
         return {"error": f"⚠️ Analysis failed: {str(e)}"}
 
+# Extract Code from Image
+def extract_code_from_image(image):
+    credentials = set_google_credentials()
+    client = vision.ImageAnnotatorClient(credentials=credentials)
+    content = image.read()
+    image = vision.Image(content=content)
+    response = client.text_detection(image=image)
+    texts = response.text_annotations
+    if texts:
+        return texts[0].description
+    return "⚠️ No text detected in image."
+
 # Initialize Credentials
 credentials = set_google_credentials()
 
@@ -93,6 +105,18 @@ st.write("Upload an image of handwritten or printed code, upload a code file, or
 
 # Initialize AI Assistant
 ai_assistant()
+
+# Image Upload Debugging Feature
+st.subheader("🖼️ Upload Image with Code")
+uploaded_image = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
+if uploaded_image is not None:
+    st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
+    extracted_code = extract_code_from_image(uploaded_image)
+    st.subheader("📜 Extracted Code:")
+    st.code(extracted_code, language="python")
+    analysis_result = analyze_code(extracted_code)
+    st.subheader("🔍 AI Debugging Analysis:")
+    st.write(analysis_result)
 
 # File Upload Debugging Feature
 st.subheader("📂 Upload Code File for Debugging")
