@@ -1,3 +1,73 @@
+import streamlit as st
+import json
+import os
+from google.cloud import vision
+from google.cloud.vision_v1 import types
+import google.auth
+
+def set_google_credentials():
+    # ✅ Load service account credentials from Streamlit Secrets
+    service_account_info = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS"])
+    
+    # ✅ Save to a temporary file
+    with open("service_account.json", "w") as f:
+        json.dump(service_account_info, f)
+    
+    # ✅ Set environment variable for Google API authentication
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "service_account.json"
+
+def analyze_image(image_file):
+    """Extracts text from an uploaded image using Google Vision API."""
+    vision_client = vision.ImageAnnotatorClient()
+    content = image_file.read()
+    image = vision.Image(content=content)
+    response = vision_client.text_detection(image=image)
+    extracted_text = response.text_annotations
+    
+    if extracted_text:
+        return extracted_text[0].description  # Extracted text from image
+    return None
+
+# ✅ Set up Google credentials
+set_google_credentials()
+
+# 📌 Streamlit App UI
+st.title("AI Code Debugger with Google Vision API")
+st.write("Upload an image of handwritten or printed code, and it will be converted into text for debugging.")
+
+# ✅ Upload Image File
+uploaded_image = st.file_uploader("Upload a code image (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
+
+if uploaded_image is not None:
+    extracted_code = analyze_image(uploaded_image)
+    if extracted_code:
+        st.subheader("Extracted Code from Image:")
+        st.code(extracted_code, language="python")  # Display extracted code
+        
+        # ✅ Perform basic debugging (Example: Checking for syntax errors)
+        try:
+            exec(extracted_code)  # 🚨 WARNING: This executes the code! Remove for security.
+            st.success("✅ No syntax errors found!")
+        except Exception as e:
+            st.error(f"❌ Syntax Error: {e}")
+    else:
+        st.warning("No text found in the image.")
+
+# ✅ Upload Code File (Optional)
+uploaded_code_file = st.file_uploader("Upload a Python file for debugging", type=["py"])
+
+if uploaded_code_file is not None:
+    code_text = uploaded_code_file.read().decode("utf-8")
+    
+    st.subheader("Uploaded Code:")
+    st.code(code_text, language="python")
+
+    # ✅ Perform Debugging
+    try:
+        exec(code_text)  # 🚨 WARNING: This executes the code! Remove for security.
+        st.success("✅ No syntax errors found in the uploaded file!")
+    except Exception as e:
+        st.error(f"❌ Syntax Error: {e}")
 import os
 import google.generativeai as genai
 import google.cloud.vision as vision
