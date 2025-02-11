@@ -1,124 +1,232 @@
 import streamlit as st
 import json
-import os
 import google.generativeai as genai
 from google.cloud import vision
 from google.oauth2 import service_account
 import subprocess
-import html
-from typing import Dict, List
 from datetime import datetime
+from typing import Dict, List
 
-# Set Google Cloud Credentials
+# Initialize session state
+if 'analysis_results' not in st.session_state:
+    st.session_state.analysis_results = {}
+if 'current_code' not in st.session_state:
+    st.session_state.current_code = ""
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+
+# Configure Google Cloud Credentials
 def set_google_credentials():
     try:
-        service_account_info = json.loads(st.secrets["gcp_service_account"])
-        credentials = service_account.Credentials.from_service_account_info(service_account_info)
-        return credentials
+        service_account_config = dict(st.secrets["gcp_service_account"])
+        return service_account.Credentials.from_service_account_info(service_account_config)
     except Exception as e:
         st.error(f"Credential Error: {str(e)}")
         return None
 
-# Configure Gemini AI API
+# Configure Gemini AI
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-SAFETY_SETTINGS = {
-    'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
-    'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-    'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-    'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
-}
-GENERATION_CONFIG = genai.types.GenerationConfig(
-    max_output_tokens=4000,
-    temperature=0.25
-)
 MODEL = genai.GenerativeModel('gemini-pro',
-    safety_settings=SAFETY_SETTINGS,
-    generation_config=GENERATION_CONFIG
+    safety_settings={
+        'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
+        'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+        'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+        'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
+    },
+    generation_config=genai.types.GenerationConfig(
+        max_output_tokens=4000,
+        temperature=0.25
+    )
 )
 
-# AI Assistant Sidebar with Tooltips
-def ai_assistant():
-    st.sidebar.title("🧠 AI Assistant")
-    st.sidebar.write("Ask me anything about debugging and coding!")
-    user_query = st.sidebar.text_input("🔍 Your question:", help="Type your query here and get AI-generated insights.")
-    if user_query:
-        response = MODEL.generate_content(f"Provide guidance for: {user_query}")
-        st.sidebar.write(response.text if response else "⚠️ No response from AI")
+# Code Analysis Functions
+def analyze_code(code_snippet: str, language: str = "python") -> Dict:
+    """Perform code analysis with error handling"""
+    if not code_snippet.strip():
+        return {"error": "⚠️ No code provided"}
 
-# Workflow Guide
-st.sidebar.subheader("📌 How to Use This Tool")
-st.sidebar.write("1️⃣ **Upload an image** with handwritten/printed code.")
-st.sidebar.write("2️⃣ **Upload a code file** in Python, Java, or JavaScript.")
-st.sidebar.write("3️⃣ **Paste code manually** for instant AI analysis.")
-st.sidebar.write("4️⃣ **View AI debugging insights** and execution results.")
-
-# Code Execution Function
-def execute_code(code, language):
+    prompt = f"""Analyze this {language} code and provide:
+    ```{language}
+    {code_snippet}
+    ```
+    Format response as:
+    ### BUGS
+    - [List line-specific issues]
+    ### FIXES
+    - [Step-by-step solutions]
+    ### CORRECTED_CODE
+    ```{language}
+    [Corrected code]
+    ```
+    ### OPTIMIZATIONS
+    - [Performance improvements]
+    ### EXPLANATION
+    - [Technical rationale]
+    """
+    
     try:
-        if language == "python":
-            result = subprocess.run(["python3", "-c", code], capture_output=True, text=True, timeout=5)
-        elif language == "javascript":
-            result = subprocess.run(["node", "-e", code], capture_output=True, text=True, timeout=5)
-        elif language == "java":
-            with open("Temp.java", "w") as f:
-                f.write(code)
-            result = subprocess.run(["javac", "Temp.java"], capture_output=True, text=True)
-            if result.returncode == 0:
-                result = subprocess.run(["java", "Temp"], capture_output=True, text=True, timeout=5)
-        else:
-            return "⚠️ Execution not supported for this language."
-        return result.stdout if result.stdout else result.stderr
-    except subprocess.TimeoutExpired:
-        return "⚠️ Execution timeout exceeded."
+        response = MODEL.generate_content(prompt)
+        return parse_analysis_response(response.text, language) if response else {"error": "⚠️ Empty response"}
     except Exception as e:
-        return f"Execution Error: {str(e)}"
+        return {"error": f"Analysis failed: {str(e)}"}
 
-# Extract Code from Image
-def extract_code_from_image(image):
+def parse_analysis_response(response_text: str, language: str) -> Dict:
+    """Parse AI response into structured format"""
+    sections = {
+        "bugs": [], "fixes": [], 
+        "corrected_code": "", 
+        "optimizations": [], 
+        "explanation": []
+    }
+    
+    current_section = None
+    for line in response_text.split('\n'):
+        if "CORRECTED_CODE" in line:
+            current_section = "corrected_code"
+            continue
+        if line.startswith("###"):
+            current_section = line[4:].lower().replace(" ", "_")
+            continue
+        if current_section and line.strip():
+            if current_section == "corrected_code":
+                sections["corrected_code"] += line + "\n"
+            else:
+                sections[current_section].append(line.strip())
+    
+    sections["corrected_code"] = sections["corrected_code"].strip()
+    return sections
+
+# Image Processing
+def extract_code_from_image(image) -> str:
+    """Extract code from image using Google Vision"""
     credentials = set_google_credentials()
     if not credentials:
-        return "⚠️ Invalid credentials."
-    client = vision.ImageAnnotatorClient(credentials=credentials)
-    content = image.read()
-    image = vision.Image(content=content)
-    response = client.text_detection(image=image)
-    texts = response.text_annotations
-    if texts:
-        return '\n'.join([line.strip() for line in texts[0].description.strip().split('\n') if line.strip()])
-    return "⚠️ No text detected in image."
+        return "⚠️ Invalid credentials"
+    
+    try:
+        client = vision.ImageAnnotatorClient(credentials=credentials)
+        content = image.read()
+        image = vision.Image(content=content)
+        response = client.text_detection(image=image)
+        return '\n'.join([line.strip() for line in response.text_annotations[0].description.split('\n') if line.strip()])
+    except Exception as e:
+        return f"⚠️ OCR Error: {str(e)}"
 
 # Streamlit UI
-st.title("🛠️ AI Code Debugger with Google Vision & Gemini API")
-st.write("Upload an image of handwritten or printed code, upload a code file, or paste code manually for debugging and optimization.")
+st.set_page_config(page_title="AI Code Debugger", layout="wide")
+st.title("🛠️ AI-Powered Code Debugger")
+st.write("Upload code via image/file or paste directly for analysis")
 
-# Paste Code Manually
-st.subheader("✍️ Paste Your Code for Debugging")
-pasted_code = st.text_area("Paste your code here:", height=200)
-if pasted_code:
-    st.subheader("📜 Pasted Code:")
-    st.code(pasted_code, language="python")
+# Input Methods
+input_method = st.radio("Choose input method:", 
+                       ["📷 Image Upload", "📁 File Upload", "📝 Paste Code"],
+                       horizontal=True)
 
-# Image Upload Debugging Feature
-st.subheader("🖼️ Upload Image with Code")
-st.write("Upload an image containing code, and AI will extract and debug it.")
-uploaded_image = st.file_uploader("📂 Choose an image file", type=["png", "jpg", "jpeg"], help="Supported formats: PNG, JPG, JPEG")
-if uploaded_image is not None:
-    st.image(uploaded_image, caption="Uploaded Image", use_container_width=True)
-    extracted_code = extract_code_from_image(uploaded_image)
-    st.subheader("📜 Extracted Code:")
-    st.code(extracted_code, language="python")
+code_text = ""
+language = "python"
 
-# File Upload Debugging Feature
-st.subheader("📂 Upload Code File for Debugging")
-st.write("Upload a code file for AI analysis and debugging.")
-uploaded_code_file = st.file_uploader("Choose a code file", type=["py", "java", "js"], help="Supported formats: Python (.py), Java (.java), JavaScript (.js)")
-if uploaded_code_file is not None:
-    code_text = uploaded_code_file.read().decode("utf-8")
-    extension = uploaded_code_file.name.split(".")[-1]
-    language_map = {"py": "python", "java": "java", "js": "javascript"}
-    language = language_map.get(extension, "python")
-    st.subheader("📜 Uploaded Code:")
-    st.code(code_text, language=language)
+# Handle Image Upload
+if input_method == "📷 Image Upload":
+    image_file = st.file_uploader("Upload code image", type=["png", "jpg", "jpeg"])
+    if image_file:
+        code_text = extract_code_from_image(image_file)
+        st.code(code_text, language="python")
 
-# Initialize AI Assistant
-ai_assistant()
+# Handle File Upload
+elif input_method == "📁 File Upload":
+    code_file = st.file_uploader("Upload code file", type=["py", "java", "js"])
+    if code_file:
+        code_text = code_file.read().decode("utf-8")
+        ext = code_file.name.split(".")[-1]
+        language = {"py": "python", "java": "java", "js": "javascript"}.get(ext, "python")
+        st.code(code_text, language=language)
+
+# Handle Paste Code
+else:
+    code_text = st.text_area("Paste your code here:", height=300)
+    if code_text:
+        st.code(code_text, language="python")
+
+# Analysis Execution
+if st.button("🚀 Analyze Code") and code_text.strip():
+    st.session_state.current_code = code_text
+    with st.spinner("🔍 Analyzing code..."):
+        st.session_state.analysis_results = analyze_code(code_text, language)
+        st.session_state.chat_history = []
+
+# Display Results
+if st.session_state.analysis_results:
+    if "error" in st.session_state.analysis_results:
+        st.error(st.session_state.analysis_results["error"])
+    else:
+        st.subheader("🔍 Analysis Results")
+        results = st.session_state.analysis_results
+        
+        with st.expander("🐛 Identified Bugs", expanded=True):
+            for bug in results.get("bugs", []):
+                st.error(f"- {bug}")
+                
+        with st.expander("🛠️ Suggested Fixes"):
+            for fix in results.get("fixes", []):
+                st.info(f"- {fix}")
+        
+        with st.expander("✅ Corrected Code"):
+            st.code(results.get("corrected_code", ""), language=language)
+        
+        with st.expander("⚡ Optimizations"):
+            for opt in results.get("optimizations", []):
+                st.success(f"- {opt}")
+        
+        with st.expander("📚 Explanation"):
+            for exp in results.get("explanation", []):
+                st.write(f"- {exp}")
+
+# Interactive Chat
+if st.session_state.analysis_results and not "error" in st.session_state.analysis_results:
+    st.markdown("---")
+    st.subheader("💬 Analysis Chat")
+    
+    for msg in st.session_state.chat_history:
+        role = "👤 You" if msg["role"] == "user" else "🤖 Assistant"
+        st.markdown(f"**{role}**: {msg['content']}")
+    
+    user_query = st.text_input("Ask about the analysis:", key="chat_input")
+    
+    if user_query:
+        st.session_state.chat_history.append({"role": "user", "content": user_query})
+        
+        try:
+            context = f"""
+            Original Code:
+            {st.session_state.current_code}
+            
+            Analysis Results:
+            {json.dumps(st.session_state.analysis_results, indent=2)}
+            
+            Question: {user_query}
+            """
+            
+            response = MODEL.generate_content(context)
+            if response.text:
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": response.text
+                })
+                st.rerun()
+        except Exception as e:
+            st.error(f"Chat error: {str(e)}")
+
+# Sidebar Components
+st.sidebar.title("🧠 AI Assistant")
+st.sidebar.write("Ask coding questions or get debugging help!")
+sidebar_query = st.sidebar.text_input("Your question:")
+if sidebar_query:
+    response = MODEL.generate_content(sidebar_query)
+    st.sidebar.write(response.text if response else "⚠️ No response")
+
+st.sidebar.markdown("---")
+st.sidebar.info("💡 **Usage Tips**\n"
+                "1. Upload clear code images\n"
+                "2. Review analysis sections\n"
+                "3. Ask follow-up questions\n"
+                "4. Implement suggestions")
