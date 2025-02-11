@@ -73,10 +73,13 @@ def analyze_code(code_snippet, language="python"):
     try:
         response = MODEL.generate_content(prompt)
         if response and "benchmark score" in response.text.lower():
-            score = int(response.text.split("benchmark score:")[-1].strip().split("/30")[0])
-            if score < 20:
-                st.warning("🔄 Reanalyzing the code for improvements...")
-                response = MODEL.generate_content(prompt + "\n\nPlease improve the accuracy, completeness, and clarity further.")
+            try:
+                score = int(response.text.split("benchmark score:")[-1].strip().split("/30")[0].strip())
+                if score < 20:
+                    st.warning("🔄 Reanalyzing the code for improvements...")
+                    response = MODEL.generate_content(prompt + "\n\nPlease improve the accuracy, completeness, and clarity further.")
+            except ValueError:
+                return {"error": "⚠️ Unable to parse benchmark score."}
         return response.text if response else "⚠️ No response from Gemini API"
     except Exception as e:
         return {"error": f"⚠️ Analysis failed: {str(e)}"}
@@ -123,19 +126,16 @@ if uploaded_code_file is not None:
     code_text = uploaded_code_file.read().decode("utf-8")
     st.subheader("Uploaded Code:")
     
-    # ✅ Detect language based on file extension
     extension = uploaded_code_file.name.split(".")[-1]
     language_map = {"py": "python", "java": "java", "js": "javascript", "c": "c", "cpp": "cpp", "go": "go", "rb": "ruby", "php": "php"}
     language = language_map.get(extension, "python")
     
     st.code(code_text, language=language)
     
-    # ✅ Debug uploaded code using Gemini API
     analysis_result = analyze_code(code_text, language)
     st.subheader("🔍 AI Debugging Analysis:")
     st.write(analysis_result)
     
-    # ✅ Paste code functionality
     st.subheader("Paste and Edit Code")
     pasted_code = st.text_area("Edit Code:", value=code_text, height=200)
     if st.button("Analyze Pasted Code"):
@@ -143,7 +143,6 @@ if uploaded_code_file is not None:
         st.subheader("🔍 AI Debugging Analysis for Pasted Code:")
         st.write(pasted_analysis)
 
-# ✅ Paste Code Manually
 st.subheader("🔹 Manually Paste Code for Debugging")
 pasted_code_manual = st.text_area("Paste Your Code Here:", height=200)
 if st.button("Analyze Manual Code"):
