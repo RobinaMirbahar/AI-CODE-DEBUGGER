@@ -89,7 +89,7 @@ st.title("AI Code Debugger with Google Vision & Gemini API")
 st.write("Upload an image of handwritten or printed code, or a code file, and it will be analyzed for errors and optimization.")
 
 # ✅ AI Assistant
-aisistant()
+ai_assistant()
 
 # ✅ Upload Image File
 uploaded_image = st.file_uploader("Upload a code image (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
