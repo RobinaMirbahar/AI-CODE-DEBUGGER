@@ -1,4 +1,5 @@
 google-generativeai
+google-cloud-vision
 streamlit
 
 
