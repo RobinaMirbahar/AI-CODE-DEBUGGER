@@ -87,29 +87,6 @@ def extract_code_from_image(image):
         return '\n'.join([line.strip() for line in texts[0].description.strip().split('\n') if line.strip()])
     return "⚠️ No text detected in image."
 
-# Handle Chat Interaction
-def handle_chat_interaction(user_input, code_context):
-    chat_history = "\n".join(
-        [f"{msg['role']}: {msg['content']}" for msg in st.session_state.chat_history[-4:]]
-    )
-    prompt = f"""Act as a code review assistant. Use this context:
-    Original Code:
-    {code_context['original_code']}
-    
-    Analysis Results:
-    {json.dumps(code_context['analysis_results'], indent=2)}
-    
-    Chat History:
-    {chat_history}
-    
-    Current Query: {user_input}
-    """
-    try:
-        response = MODEL.generate_content(prompt)
-        return response.text if response else "⚠️ Could not generate response"
-    except Exception as e:
-        return f"Chat error: {str(e)}"
-
 # Streamlit UI
 st.title("🛠️ AI Code Debugger with Google Vision & Gemini API")
 st.write("Upload an image of handwritten or printed code, upload a code file, or paste code manually for debugging and optimization.")
@@ -145,14 +122,3 @@ if uploaded_code_file is not None:
 
 # Initialize AI Assistant
 ai_assistant()
-
-# Chat Input for Refinement
-user_query = st.text_input("Ask about the analysis or request changes:")
-if user_query:
-    context = {
-        'original_code': st.session_state.get('current_code', ''),
-        'analysis_results': st.session_state.get('analysis_results', {})
-    }
-    ai_response = handle_chat_interaction(user_query, context)
-    st.session_state.chat_history.append({'role': 'assistant', 'content': ai_response})
-    st.rerun()
