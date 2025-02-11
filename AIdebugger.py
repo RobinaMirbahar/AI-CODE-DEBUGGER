@@ -40,7 +40,7 @@ def analyze_image(image_file, credentials):
         return extracted_text[0].description  # Extracted text from image
     return None
 
-# ✅ Analyze and debug code using Gemini API
+# ✅ Analyze and debug code using Gemini API with benchmark evaluation
 def analyze_code(code_snippet):
     if not code_snippet.strip():
         return {"error": "⚠️ No code provided"}
@@ -54,7 +54,12 @@ def analyze_code(code_snippet):
     - Error explanations
     - Analysis findings
     - Optimization recommendations
-    """
+    Also, score the debugging effectiveness on a scale of 1-10 for:
+    1. **Accuracy** (Does the fix match expected results?)
+    2. **Completeness** (Are all errors addressed?)
+    3. **Clarity** (Are explanations understandable?)
+    Provide a final benchmark score out of 30."""
+    
     try:
         response = MODEL.generate_content(prompt)
         return response.text if response else "⚠️ No response from Gemini API"
