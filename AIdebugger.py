@@ -69,7 +69,7 @@ def analyze_code(code_snippet, language="python"):
     Provide structured response with:
     - Bugs and issues in the code
     - How to fix them
-    - Fixed code
+    - Fixed code (properly formatted)
     - Execution results (if applicable)
     - Optimization recommendations
     """
@@ -78,11 +78,11 @@ def analyze_code(code_snippet, language="python"):
         corrected_code = response.text if response else "⚠️ No response from AI"
         execution_result = execute_code(corrected_code, language)
         return {
-            "bugs": "Identified issues in the code",
-            "fix": "Steps to fix the issues",
+            "bugs": "🔍 Identified issues in the code",
+            "fix": "🛠️ Steps to fix the issues",
             "corrected_code": corrected_code,
             "execution_result": execution_result,
-            "optimization": "Suggested improvements for efficiency"
+            "optimization": "⚡ Suggested improvements for efficiency"
         }
     except Exception as e:
         return {"error": f"⚠️ Analysis failed: {str(e)}"}
