@@ -87,9 +87,39 @@ def extract_code_from_image(image):
         return '\n'.join([line.strip() for line in texts[0].description.strip().split('\n') if line.strip()])
     return "⚠️ No text detected in image."
 
+# Handle Chat Interaction
+def handle_chat_interaction(user_input, code_context):
+    chat_history = "\n".join(
+        [f"{msg['role']}: {msg['content']}" for msg in st.session_state.chat_history[-4:]]
+    )
+    prompt = f"""Act as a code review assistant. Use this context:
+    Original Code:
+    {code_context['original_code']}
+    
+    Analysis Results:
+    {json.dumps(code_context['analysis_results'], indent=2)}
+    
+    Chat History:
+    {chat_history}
+    
+    Current Query: {user_input}
+    """
+    try:
+        response = MODEL.generate_content(prompt)
+        return response.text if response else "⚠️ Could not generate response"
+    except Exception as e:
+        return f"Chat error: {str(e)}"
+
 # Streamlit UI
 st.title("🛠️ AI Code Debugger with Google Vision & Gemini API")
 st.write("Upload an image of handwritten or printed code, upload a code file, or paste code manually for debugging and optimization.")
+
+# Paste Code Manually
+st.subheader("✍️ Paste Your Code for Debugging")
+pasted_code = st.text_area("Paste your code here:", height=200)
+if pasted_code:
+    st.subheader("📜 Pasted Code:")
+    st.code(pasted_code, language="python")
 
 # Image Upload Debugging Feature
 st.subheader("🖼️ Upload Image with Code")
