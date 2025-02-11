@@ -4,14 +4,15 @@ import os
 import google.generativeai as genai
 from google.cloud import vision
 from google.oauth2 import service_account
+import subprocess
 
-# ✅ Set up Google Vision API credentials
+# Set Google Cloud Credentials
 def set_google_credentials():
     service_account_info = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS"])
     credentials = service_account.Credentials.from_service_account_info(service_account_info)
     return credentials
 
-# ✅ Configure Gemini API
+# Configure Gemini AI API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 SAFETY_SETTINGS = {
     'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
@@ -28,7 +29,7 @@ MODEL = genai.GenerativeModel('gemini-pro',
     generation_config=GENERATION_CONFIG
 )
 
-# ✅ AI Assistant to help users
+# AI Assistant Sidebar
 def ai_assistant():
     st.sidebar.title("AI Assistant")
     st.sidebar.write("Ask me anything about debugging and coding!")
@@ -37,19 +38,26 @@ def ai_assistant():
         response = MODEL.generate_content(f"Provide guidance for: {user_query}")
         st.sidebar.write(response.text if response else "⚠️ No response from AI")
 
-# ✅ Analyze image for code extraction
-def analyze_image(image_file, credentials):
-    vision_client = vision.ImageAnnotatorClient(credentials=credentials)
-    content = image_file.read()
-    image = vision.Image(content=content)
-    response = vision_client.text_detection(image=image)
-    extracted_text = response.text_annotations
-    
-    if extracted_text:
-        return extracted_text[0].description  # Extracted text from image
-    return None
+# Code Execution Function
+def execute_code(code, language):
+    try:
+        if language == "python":
+            result = subprocess.run(["python3", "-c", code], capture_output=True, text=True, timeout=5)
+        elif language == "javascript":
+            result = subprocess.run(["node", "-e", code], capture_output=True, text=True, timeout=5)
+        elif language == "java":
+            with open("Temp.java", "w") as f:
+                f.write(code)
+            result = subprocess.run(["javac", "Temp.java"], capture_output=True, text=True)
+            if result.returncode == 0:
+                result = subprocess.run(["java", "Temp"], capture_output=True, text=True, timeout=5)
+        else:
+            return "⚠️ Execution not supported for this language."
+        return result.stdout if result.stdout else result.stderr
+    except Exception as e:
+        return f"Execution Error: {str(e)}"
 
-# ✅ Analyze and debug code using Gemini API with benchmark evaluation
+# AI Code Analysis Function
 def analyze_code(code_snippet, language="python"):
     if not code_snippet.strip():
         return {"error": "⚠️ No code provided"}
@@ -61,90 +69,58 @@ def analyze_code(code_snippet, language="python"):
     Provide structured response with:
     - Corrected code with line comments
     - Error explanations
-    - Analysis findings
+    - Execution results (if applicable)
     - Optimization recommendations
-    Also, score the debugging effectiveness on a scale of 1-10 for:
-    1. **Accuracy** (Does the fix match expected results?)
-    2. **Completeness** (Are all errors addressed?)
-    3. **Clarity** (Are explanations understandable?)
-    Provide a final benchmark score out of 30.
-    If the score is below 20, retry analysis with a refined approach emphasizing missing areas."""
-    
+    """
     try:
         response = MODEL.generate_content(prompt)
-        if response and "benchmark score" in response.text.lower():
-            try:
-                score_part = response.text.split("benchmark score:")[-1].strip()
-                score = int(score_part.split("/30")[0].strip().split(" ")[0])
-                if score < 20:
-                    st.warning("🔄 Reanalyzing the code for improvements...")
-                    response = MODEL.generate_content(prompt + "\n\nPlease improve the accuracy, completeness, and clarity further.")
-            except ValueError:
-                return {"error": "⚠️ Unable to parse benchmark score."}
-        return response.text if response else "⚠️ No response from Gemini API"
+        corrected_code = response.text if response else "⚠️ No response from AI"
+        execution_result = execute_code(corrected_code, language)
+        return {
+            "corrected_code": corrected_code,
+            "execution_result": execution_result,
+        }
     except Exception as e:
         return {"error": f"⚠️ Analysis failed: {str(e)}"}
 
-# ✅ Set up credentials
+# Initialize Credentials
 credentials = set_google_credentials()
 
-# 📌 Streamlit App UI
-st.title("AI Code Debugger with Google Vision & Gemini API")
+# Streamlit UI
+title = "AI Code Debugger with Google Vision & Gemini API"
+st.title(title)
 st.write("Upload an image of handwritten or printed code, upload a code file, or paste code manually for debugging and optimization.")
 
-# ✅ AI Assistant
+# Initialize AI Assistant
 ai_assistant()
 
-# ✅ Upload Image File
-uploaded_image = st.file_uploader("Upload a code image (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
-if uploaded_image is not None:
-    extracted_code = analyze_image(uploaded_image, credentials)
-    if extracted_code:
-        st.subheader("Extracted Code from Image:")
-        st.code(extracted_code, language="python")  
-        
-        # ✅ Select programming language
-        language = st.selectbox("Select Code Language", ["python", "java", "javascript", "c", "cpp", "go", "ruby", "php"])
-        
-        # ✅ Debug extracted code using Gemini API
-        analysis_result = analyze_code(extracted_code, language)
-        st.subheader("🔍 AI Debugging Analysis:")
-        st.write(analysis_result)
-        
-        # ✅ Paste code functionality
-        st.subheader("Paste and Edit Code")
-        pasted_code = st.text_area("Edit Code:", value=extracted_code, height=200)
-        if st.button("Analyze Pasted Code"):
-            pasted_analysis = analyze_code(pasted_code, language)
-            st.subheader("🔍 AI Debugging Analysis for Pasted Code:")
-            st.write(pasted_analysis)
-    else:
-        st.warning("No text found in the image.")
-
-# ✅ Upload Code File (Optional)
-uploaded_code_file = st.file_uploader("Upload a code file for debugging", type=["py", "java", "js", "c", "cpp", "go", "rb", "php"])
+# File Upload Debugging Feature
+st.subheader("📂 Upload Code File for Debugging")
+uploaded_code_file = st.file_uploader("Upload a code file", type=["py", "java", "js"])
 if uploaded_code_file is not None:
     code_text = uploaded_code_file.read().decode("utf-8")
-    st.subheader("Uploaded Code:")
     
     extension = uploaded_code_file.name.split(".")[-1]
-    language_map = {"py": "python", "java": "java", "js": "javascript", "c": "c", "cpp": "cpp", "go": "go", "rb": "ruby", "php": "php"}
+    language_map = {"py": "python", "java": "java", "js": "javascript"}
     language = language_map.get(extension, "python")
     
+    st.subheader("📜 Uploaded Code:")
     st.code(code_text, language=language)
     
     analysis_result = analyze_code(code_text, language)
     st.subheader("🔍 AI Debugging Analysis:")
     st.write(analysis_result)
     
-    st.subheader("Paste and Edit Code")
+    # Manual Editing Section
+    st.subheader("✏️ Paste and Edit Code")
     pasted_code = st.text_area("Edit Code:", value=code_text, height=200)
     if st.button("Analyze Pasted Code"):
         pasted_analysis = analyze_code(pasted_code, language)
         st.subheader("🔍 AI Debugging Analysis for Pasted Code:")
         st.write(pasted_analysis)
 
-st.subheader("🔹 Manually Paste Code for Debugging")
+# Manual Code Debugging Feature
+st.subheader("✏️ Manually Paste Code for Debugging")
 pasted_code_manual = st.text_area("Paste Your Code Here:", height=200)
 if st.button("Analyze Manual Code"):
     manual_analysis = analyze_code(pasted_code_manual)
