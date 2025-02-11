@@ -110,7 +110,7 @@ ai_assistant()
 st.subheader("🖼️ Upload Image with Code")
 uploaded_image = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
 if uploaded_image is not None:
-    st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
+    st.image(uploaded_image, caption="Uploaded Image", use_container_width=True)
     extracted_code = extract_code_from_image(uploaded_image)
     st.subheader("📜 Extracted Code:")
     st.code(extracted_code, language="python")
