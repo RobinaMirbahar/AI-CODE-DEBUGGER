@@ -106,6 +106,10 @@ if uploaded_image is not None:
         analysis_result = analyze_code(extracted_code, language)
         st.subheader("🔍 AI Debugging Analysis:")
         st.write(analysis_result)
+        
+        # ✅ Add paste code functionality
+        if st.button("Paste Code for Editing"):
+            st.text_area("Edit Code:", value=extracted_code, height=200)
     else:
         st.warning("No text found in the image.")
 
@@ -126,3 +130,7 @@ if uploaded_code_file is not None:
     analysis_result = analyze_code(code_text, language)
     st.subheader("🔍 AI Debugging Analysis:")
     st.write(analysis_result)
+    
+    # ✅ Add paste code functionality
+    if st.button("Paste Code for Editing"):
+        st.text_area("Edit Code:", value=code_text, height=200)
