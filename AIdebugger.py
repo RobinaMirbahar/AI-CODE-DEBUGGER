@@ -186,35 +186,48 @@ if st.session_state.analysis_results and not "error" in st.session_state.analysi
     st.markdown("---")
     st.subheader("💬 Analysis Chat")
     
+    # Display chat history
     for msg in st.session_state.chat_history:
         role = "👤 You" if msg["role"] == "user" else "🤖 Assistant"
         st.markdown(f"**{role}**: {msg['content']}")
     
-    user_query = st.text_input("Ask about the analysis:", key="chat_input")
+    # Chat input with empty key
+    user_query = st.text_input("Ask about the analysis:", key="chat_query")
     
-    if user_query:
-        st.session_state.chat_history.append({"role": "user", "content": user_query})
+    # Only process non-empty queries
+    if user_query and user_query.strip():
+        # Add user message to history
+        st.session_state.chat_history.append({
+            "role": "user",
+            "content": user_query.strip(),
+            "timestamp": str(datetime.now())
+        })
         
+        # Generate AI response
         try:
-            context = f"""
-            Original Code:
+            chat_prompt = f"""Context:
             {st.session_state.current_code}
             
-            Analysis Results:
-            {json.dumps(st.session_state.analysis_results, indent=2)}
-            
             Question: {user_query}
+            
+            Provide a concise technical answer:
             """
             
-            response = MODEL.generate_content(context)
-            if response.text:
+            response = MODEL.generate_content(chat_prompt)
+            if response and response.text:
                 st.session_state.chat_history.append({
                     "role": "assistant",
-                    "content": response.text
+                    "content": response.text,
+                    "timestamp": str(datetime.now())
                 })
+                
+                # Clear input and prevent rerun loop
+                st.session_state.chat_query = ""
                 st.rerun()
+                
         except Exception as e:
             st.error(f"Chat error: {str(e)}")
+            st.session_state.chat_history.pop()  # Remove last user input on error
 
 # Sidebar Components
 st.sidebar.title("🧠 AI Assistant")
