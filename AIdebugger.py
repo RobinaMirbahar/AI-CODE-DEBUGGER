@@ -74,7 +74,8 @@ def analyze_code(code_snippet, language="python"):
         response = MODEL.generate_content(prompt)
         if response and "benchmark score" in response.text.lower():
             try:
-                score = int(response.text.split("benchmark score:")[-1].strip().split("/30")[0].strip())
+                score_part = response.text.split("benchmark score:")[-1].strip()
+                score = int(score_part.split("/30")[0].strip().split(" ")[0])
                 if score < 20:
                     st.warning("🔄 Reanalyzing the code for improvements...")
                     response = MODEL.generate_content(prompt + "\n\nPlease improve the accuracy, completeness, and clarity further.")
