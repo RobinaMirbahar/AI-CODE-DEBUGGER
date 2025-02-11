@@ -29,11 +29,11 @@ MODEL = genai.GenerativeModel('gemini-pro',
     generation_config=GENERATION_CONFIG
 )
 
-# AI Assistant Sidebar
+# AI Assistant Sidebar with Tooltips
 def ai_assistant():
-    st.sidebar.title("AI Assistant")
+    st.sidebar.title("🧠 AI Assistant")
     st.sidebar.write("Ask me anything about debugging and coding!")
-    user_query = st.sidebar.text_input("Your question:")
+    user_query = st.sidebar.text_input("🔍 Your question:", help="Type your query here and get AI-generated insights.")
     if user_query:
         response = MODEL.generate_content(f"Provide guidance for: {user_query}")
         st.sidebar.write(response.text if response else "⚠️ No response from AI")
@@ -99,8 +99,7 @@ def extract_code_from_image(image):
 credentials = set_google_credentials()
 
 # Streamlit UI
-title = "AI Code Debugger with Google Vision & Gemini API"
-st.title(title)
+st.title("🛠️ AI Code Debugger with Google Vision & Gemini API")
 st.write("Upload an image of handwritten or printed code, upload a code file, or paste code manually for debugging and optimization.")
 
 # Initialize AI Assistant
@@ -108,7 +107,8 @@ ai_assistant()
 
 # Image Upload Debugging Feature
 st.subheader("🖼️ Upload Image with Code")
-uploaded_image = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
+st.write("Upload an image containing code, and AI will extract and debug it.")
+uploaded_image = st.file_uploader("📂 Choose an image file", type=["png", "jpg", "jpeg"], help="Supported formats: PNG, JPG, JPEG")
 if uploaded_image is not None:
     st.image(uploaded_image, caption="Uploaded Image", use_container_width=True)
     extracted_code = extract_code_from_image(uploaded_image)
@@ -120,7 +120,8 @@ if uploaded_image is not None:
 
 # File Upload Debugging Feature
 st.subheader("📂 Upload Code File for Debugging")
-uploaded_code_file = st.file_uploader("Upload a code file", type=["py", "java", "js"])
+st.write("Upload a code file for AI analysis and debugging.")
+uploaded_code_file = st.file_uploader("Choose a code file", type=["py", "java", "js"], help="Supported formats: Python (.py), Java (.java), JavaScript (.js)")
 if uploaded_code_file is not None:
     code_text = uploaded_code_file.read().decode("utf-8")
     
@@ -137,8 +138,16 @@ if uploaded_code_file is not None:
 
 # Manual Code Debugging Feature
 st.subheader("✏️ Manually Paste Code for Debugging")
+st.write("Paste your code below and let AI analyze and fix it.")
 pasted_code_manual = st.text_area("Paste Your Code Here:", height=200)
 if st.button("Analyze Manual Code"):
     manual_analysis = analyze_code(pasted_code_manual)
     st.subheader("🔍 AI Debugging Analysis for Manual Code:")
     st.write(manual_analysis)
+
+# Workflow Guide
+st.sidebar.subheader("📌 How to Use This Tool")
+st.sidebar.write("1️⃣ **Upload an image** with handwritten/printed code.")
+st.sidebar.write("2️⃣ **Upload a code file** in Python, Java, or JavaScript.")
+st.sidebar.write("3️⃣ **Paste code manually** for instant AI analysis.")
+st.sidebar.write("4️⃣ **View AI debugging insights** and execution results.")
