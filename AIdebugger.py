@@ -134,14 +134,6 @@ if uploaded_code_file is not None:
     analysis_result = analyze_code(code_text, language)
     st.subheader("🔍 AI Debugging Analysis:")
     st.write(analysis_result)
-    
-    # Manual Editing Section
-    st.subheader("✏️ Paste and Edit Code")
-    pasted_code = st.text_area("Edit Code:", value=code_text, height=200)
-    if st.button("Analyze Pasted Code"):
-        pasted_analysis = analyze_code(pasted_code, language)
-        st.subheader("🔍 AI Debugging Analysis for Pasted Code:")
-        st.write(pasted_analysis)
 
 # Manual Code Debugging Feature
 st.subheader("✏️ Manually Paste Code for Debugging")
