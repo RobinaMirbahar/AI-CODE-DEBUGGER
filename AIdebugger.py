@@ -116,6 +116,13 @@ st.write("Upload an image of handwritten or printed code, upload a code file, or
 # Initialize AI Assistant
 ai_assistant()
 
+# Workflow Guide
+st.sidebar.subheader("📌 How to Use This Tool")
+st.sidebar.write("1️⃣ **Upload an image** with handwritten/printed code.")
+st.sidebar.write("2️⃣ **Upload a code file** in Python, Java, or JavaScript.")
+st.sidebar.write("3️⃣ **Paste code manually** for instant AI analysis.")
+st.sidebar.write("4️⃣ **View AI debugging insights** and execution results.")
+
 # Image Upload Debugging Feature
 st.subheader("🖼️ Upload Image with Code")
 st.write("Upload an image containing code, and AI will extract and debug it.")
