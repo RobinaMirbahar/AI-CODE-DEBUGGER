@@ -56,6 +56,40 @@ MODEL = genai.GenerativeModel('gemini-pro',
     )
 )
 
+# Code Analysis Function
+def analyze_code(code: str, language: str) -> Dict:
+    """Analyze code using Gemini with error handling"""
+    try:
+        prompt = f"""Analyze this {language} code and provide:
+        1. List of bugs with line numbers
+        2. Suggested fixes
+        3. Corrected code
+        4. Performance optimizations
+        5. Detailed explanation
+        
+        Format response as JSON with keys:
+        - bugs (list of strings)
+        - fixes (list of strings)
+        - corrected_code (string)
+        - optimizations (list of strings)
+        - explanation (list of strings)
+        
+        Code:\n{code}"""
+
+        response = MODEL.generate_content(prompt)
+        
+        if not response.text:
+            return {"error": "❌ No response from AI model"}
+            
+        # Clean Gemini's response
+        cleaned_response = response.text.replace("```json", "").replace("```", "")
+        return json.loads(cleaned_response)
+        
+    except json.JSONDecodeError:
+        return {"error": "❌ Failed to parse AI response"}
+    except Exception as e:
+        return {"error": f"❌ Analysis failed: {str(e)}"}
+
 # AI Assistant Sidebar
 def ai_assistant():
     st.sidebar.title("🧠 AI Assistant")
@@ -136,30 +170,3 @@ if st.button("🚀 Analyze Code") and code_text.strip():
     st.session_state.current_code = code_text
     with st.spinner("🔍 Analyzing code..."):
         st.session_state.analysis_results = analyze_code(code_text, language)
-
-# Display Results
-if st.session_state.analysis_results:
-    if "error" in st.session_state.analysis_results:
-        st.error(st.session_state.analysis_results["error"])
-    else:
-        st.subheader("🔍 Analysis Results")
-        results = st.session_state.analysis_results
-        
-        with st.expander("🐛 Identified Bugs", expanded=True):
-            for bug in results.get("bugs", []):
-                st.error(f"- {bug}")
-        
-        with st.expander("🛠️ Suggested Fixes"):
-            for fix in results.get("fixes", []):
-                st.info(f"- {fix}")
-        
-        with st.expander("✅ Corrected Code"):
-            st.code(results.get("corrected_code", ""), language=language)
-        
-        with st.expander("⚡ Optimizations"):
-            for opt in results.get("optimizations", []):
-                st.success(f"- {opt}")
-        
-        with st.expander("📚 Explanation"):
-            for exp in results.get("explanation", []):
-                st.write(f"- {exp}")
