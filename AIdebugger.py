@@ -58,6 +58,43 @@ MODEL = genai.GenerativeModel('gemini-pro',
     )
 )
 
+# AI Assistant Sidebar
+def ai_assistant():
+    st.sidebar.title("🧠 AI Assistant")
+    st.sidebar.write("Ask coding questions or get debugging help!")
+    sidebar_query = st.sidebar.text_input("Your question:")
+    if sidebar_query:
+        response = MODEL.generate_content(sidebar_query)
+        st.sidebar.write(response.text if response else "⚠️ No response")
+    st.sidebar.markdown("---")
+    st.sidebar.info("💡 **Usage Tips**\n"
+                    "1. Upload clear code images\n"
+                    "2. Review analysis sections\n"
+                    "3. Ask follow-up questions\n"
+                    "4. Implement suggestions")
+
+# Image Processing
+def extract_code_from_image(image) -> str:
+    """Extract code from image using Google Vision"""
+    if not credentials:
+        return "⚠️ Invalid credentials: Check your Google Cloud setup."
+
+    try:
+        client = vision.ImageAnnotatorClient(credentials=credentials)
+        content = image.read()
+        image = vision.Image(content=content)
+        response = client.text_detection(image=image)
+        
+        if response.error.message:
+            return f"⚠️ Vision API Error: {response.error.message}"
+        
+        if response.text_annotations:
+            return response.text_annotations[0].description.strip()
+        
+        return "⚠️ No text detected in image."
+    except Exception as e:
+        return f"⚠️ OCR Error: {str(e)}"
+
 # Code Analysis Function
 def analyze_code(code: str, language: str) -> Dict:
     """Analyze code using Gemini with error handling"""
@@ -93,6 +130,20 @@ def analyze_code(code: str, language: str) -> Dict:
     except Exception as e:
         return {"error": f"❌ Analysis failed: {str(e)}"}
 
+# Streamlit UI
+st.set_page_config(page_title="AI Code Debugger", layout="wide")
+st.title("🛠️ AI-Powered Code Debugger")
+st.write("Upload code via image/file or paste directly for analysis")
+
+# Initialize AI Assistant
+ai_assistant()
+
+# Analysis Execution
+if st.button("🚀 Analyze Code") and st.session_state.current_code.strip():
+    with st.spinner("🔍 Analyzing code..."):
+        st.session_state.analysis_results = analyze_code(st.session_state.current_code, st.session_state.detected_language)
+        st.experimental_rerun()
+
 # Display Analysis Results
 if "error" in st.session_state.analysis_results:
     st.error(st.session_state.analysis_results["error"])
@@ -117,9 +168,3 @@ else:
     with st.expander("📚 Explanation"):
         for exp in st.session_state.analysis_results.get("explanation", []):
             st.write(f"- {exp}")
-
-# Analysis Execution
-if st.button("🚀 Analyze Code") and st.session_state.current_code.strip():
-    with st.spinner("🔍 Analyzing code..."):
-        st.session_state.analysis_results = analyze_code(st.session_state.current_code, st.session_state.detected_language)
-        st.experimental_rerun()
