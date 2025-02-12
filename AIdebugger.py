@@ -1,9 +1,8 @@
-iimport streamlit as st
+import streamlit as st
 import json
 import google.generativeai as genai
 from google.cloud import vision
 from google.oauth2 import service_account
-from typing import Dict, List
 import os
 
 # --- MUST BE FIRST STREAMLIT COMMAND ---
@@ -16,127 +15,84 @@ if 'analysis_results' not in st.session_state:
 if 'current_code' not in st.session_state:
     st.session_state.current_code = ""
 
-def get_credentials():
-    """Enhanced credential handling"""
-    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-    
-    if not credentials_json:
-        st.error("❌ Missing Google Cloud credentials in environment variables")
-        st.info("Ensure GOOGLE_APPLICATION_CREDENTIALS_JSON is set with valid service account JSON")
-        return None
+# --- Credential Handling (No Streamlit commands here) ---
+CREDENTIALS = None
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-    try:
-        credentials_dict = json.loads(credentials_json)
-        required_fields = ["type", "project_id", "private_key_id", 
-                          "private_key", "client_email", "client_id"]
-        
-        missing = [field for field in required_fields if field not in credentials_dict]
-        if missing:
-            st.error(f"❌ Invalid credentials: Missing fields {', '.join(missing)}")
-            return None
-            
-        credentials = service_account.Credentials.from_service_account_info(credentials_dict)
-        return credentials
-        
-    except json.JSONDecodeError:
-        st.error("❌ Invalid JSON format in credentials")
-        return None
-    except Exception as e:
-        st.error(f"❌ Credential verification failed: {str(e)}")
-        return None
-
-# Initialize credentials
-credentials = get_credentials()
-
-# Configure Gemini API
 try:
-    genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-    MODEL = genai.GenerativeModel('gemini-pro',
-        safety_settings={
-            'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
-            'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-            'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-            'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
-        },
-        generation_config=genai.types.GenerationConfig(
-            max_output_tokens=4000,
-            temperature=0.25
-        )
+    # Load Google Cloud credentials
+    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    if credentials_json:
+        creds_dict = json.loads(credentials_json)
+        CREDENTIALS = service_account.Credentials.from_service_account_info(creds_dict)
+        
+    # Configure Gemini
+    if GOOGLE_API_KEY:
+        genai.configure(api_key=GOOGLE_API_KEY)
+        
+except Exception as cred_error:
+    st.error("⚠️ Initialization Error - Check configuration")
+    st.stop()
+
+# --- Streamlit UI Starts Here ---
+st.title("🛠️ AI-Powered Code Debugger")
+
+def validate_services():
+    """Check required services are available"""
+    errors = []
+    if not CREDENTIALS:
+        errors.append("Google Cloud credentials not configured")
+    if not GOOGLE_API_KEY:
+        errors.append("Google API key missing")
+    return errors
+
+# Show configuration errors at top
+if service_errors := validate_services():
+    st.error("CRITICAL CONFIGURATION ISSUES:")
+    for error in service_errors:
+        st.write(f"- {error}")
+    st.stop()
+
+# --- Rest of Application Code ---
+MODEL = genai.GenerativeModel('gemini-pro',
+    safety_settings={
+        'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
+        'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+        'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+        'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
+    },
+    generation_config=genai.types.GenerationConfig(
+        max_output_tokens=4000,
+        temperature=0.25
     )
-except Exception as e:
-    st.error(f"❌ Gemini API configuration failed: {str(e)}")
-    MODEL = None
+)
 
-def analyze_code(code: str, language: str) -> Dict:
-    """Improved code analysis with robust error handling"""
-    if not MODEL:
-        return {"error": "❌ AI model not initialized"}
-    
+def analyze_code(code: str, language: str) -> dict:
+    """Code analysis implementation"""
     try:
-        prompt = f"""As a senior software engineer, analyze this {language} code:
-{code}
-
-Provide JSON response with these keys:
-- bugs: list of strings with line numbers
-- fixes: list of strings with concrete solutions
-- corrected_code: full corrected code as string
-- optimizations: list of performance improvements
-- explanation: list of technical explanations
-
-Example format:
-{{
-    "bugs": ["Line 5: Missing semicolon"],
-    "fixes": ["Add ';' at line 5"],
-    "corrected_code": "...",
-    "optimizations": ["Use more efficient data structure"],
-    "explanation": ["The code fails because..."]
-}}"""
-
+        prompt = f"""Analyze this {language} code and provide JSON response with:
+        - bugs (list)
+        - fixes (list)
+        - corrected_code (str)
+        - optimizations (list)
+        - explanation (list)
+        
+        Code:\n{code}"""
+        
         response = MODEL.generate_content(prompt)
-        
-        if not response.text:
-            return {"error": "❌ Empty response from AI model"}
-            
-        # Clean and validate response
-        cleaned = response.text.strip().replace("```json", "").replace("```", "")
-        try:
-            result = json.loads(cleaned)
-            required_keys = {"bugs", "fixes", "corrected_code", "optimizations", "explanation"}
-            if not required_keys.issubset(result.keys()):
-                return {"error": "❌ Invalid response format from AI"}
-            return result
-        except json.JSONDecodeError:
-            return {"error": f"❌ Failed to parse JSON. Raw response: {cleaned[:200]}"}
-            
+        return json.loads(response.text.strip("```json "))
     except Exception as e:
-        return {"error": f"❌ Analysis failed: {str(e)}"}
+        return {"error": str(e)}
 
-def extract_code_from_image(image) -> str:
-    """Enhanced OCR processing with better error handling"""
-    if not credentials:
-        return "⚠️ Invalid credentials: Check your Google Cloud setup."
-
+def extract_code_from_image(image):
+    """Image processing implementation"""
     try:
-        client = vision.ImageAnnotatorClient(credentials=credentials)
+        client = vision.ImageAnnotatorClient(credentials=CREDENTIALS)
         content = image.read()
-        img = vision.Image(content=content)
-        response = client.text_detection(image=img)
-        
-        if response.error.message:
-            return f"⚠️ Vision API Error: {response.error.message}"
-            
-        if not response.text_annotations:
-            return "⚠️ No text detected in image"
-            
-        try:
-            return response.text_annotations[0].description.strip()
-        except IndexError:
-            return "⚠️ Empty text annotations from API"
-        except AttributeError:
-            return "⚠️ Invalid API response format"
-            
+        response = client.text_detection(image=vision.Image(content=content))
+        return response.text_annotations[0].description.strip() if response.text_annotations else ""
     except Exception as e:
-        return f"⚠️ OCR processing failed: {str(e)}"
+        return f"Error: {str(e)}"
 
 # Streamlit UI Configuration
 st.set_page_config(page_title="AI Code Debugger", layout="wide")
