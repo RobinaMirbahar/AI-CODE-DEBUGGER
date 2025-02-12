@@ -1,18 +1,28 @@
 import streamlit as st
-import os
 import json
+import google.generativeai as genai
+from google.cloud import vision
+from google.oauth2 import service_account
+import os
 
-# Check if secrets exist
+# --- MUST BE FIRST STREAMLIT COMMAND ---
+st.set_page_config(page_title="AI Code Debugger", layout="wide")
+
+# --- Load Credentials ---
 try:
-    st.write("🔍 Checking Streamlit Secrets...")
+    # ✅ Load Google API Key from Secrets
+    GOOGLE_API_KEY = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=GOOGLE_API_KEY)
 
-    # Check GEMINI_API_KEY
-    gemini_api_key = st.secrets["GEMINI_API_KEY"]
-    st.success(f"✅ GEMINI_API_KEY Loaded: {gemini_api_key[:10]}...")
-
-    # Check Google Cloud credentials
+    # ✅ Load Google Cloud Credentials
     credentials_info = st.secrets["gcp_service_account"]
-    st.success(f"✅ Google Cloud Project: {credentials_info['project_id']}")
+    CREDENTIALS = service_account.Credentials.from_service_account_info(credentials_info)
 
+    st.success(f"✅ Credentials Loaded for Google Cloud Project: {credentials_info['project_id']}")
+
+except KeyError as e:
+    st.error(f"❌ Missing Secret: {e} - Please check Streamlit secrets")
+    st.stop()
 except Exception as e:
-    st.error(f"❌ ERROR: {str(e)}")
+    st.error(f"❌ Credential Load Error: {str(e)}")
+    st.stop()
