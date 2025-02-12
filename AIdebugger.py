@@ -56,6 +56,23 @@ def ai_assistant():
                     "3. Ask follow-up questions\n"
                     "4. Implement suggestions")
 
+# Image Processing
+def extract_code_from_image(image) -> str:
+    """Extract code from image using Google Vision"""
+    if not credentials_json:
+        return "⚠️ Invalid credentials"
+    
+    try:
+        client = vision.ImageAnnotatorClient(credentials=credentials)
+        content = image.read()
+        image = vision.Image(content=content)
+        response = client.text_detection(image=image)
+        if response.text_annotations:
+            return response.text_annotations[0].description
+        return "⚠️ No text detected in image."
+    except Exception as e:
+        return f"⚠️ OCR Error: {str(e)}"
+
 # Streamlit UI
 st.set_page_config(page_title="AI Code Debugger", layout="wide")
 st.title("🛠️ AI-Powered Code Debugger")
