@@ -1,10 +1,14 @@
-import streamlit as st
+iimport streamlit as st
 import json
 import google.generativeai as genai
 from google.cloud import vision
 from google.oauth2 import service_account
 from typing import Dict, List
 import os
+
+# --- MUST BE FIRST STREAMLIT COMMAND ---
+st.set_page_config(page_title="AI Code Debugger", layout="wide")
+# ---------------------------------------
 
 # Initialize session state
 if 'analysis_results' not in st.session_state:
@@ -13,7 +17,7 @@ if 'current_code' not in st.session_state:
     st.session_state.current_code = ""
 
 def get_credentials():
-    """Enhanced credential handling with detailed error reporting"""
+    """Enhanced credential handling"""
     credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
     
     if not credentials_json:
@@ -32,9 +36,6 @@ def get_credentials():
             return None
             
         credentials = service_account.Credentials.from_service_account_info(credentials_dict)
-        
-        # Test credentials with Vision API
-        vision.ImageAnnotatorClient(credentials=credentials).get_iam_policy()
         return credentials
         
     except json.JSONDecodeError:
