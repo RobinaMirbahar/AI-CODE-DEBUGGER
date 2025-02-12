@@ -15,6 +15,8 @@ if 'current_code' not in st.session_state:
     st.session_state.current_code = ""
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
+if 'detected_language' not in st.session_state:
+    st.session_state.detected_language = "python"  # Default language
 
 # Load credentials correctly from GitHub Secrets
 credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
@@ -106,7 +108,7 @@ else:
             st.info(f"- {fix}")
     
     with st.expander("✅ Corrected Code"):
-        st.code(st.session_state.analysis_results.get("corrected_code", ""), language=language)
+        st.code(st.session_state.analysis_results.get("corrected_code", ""), language=st.session_state.detected_language)
     
     with st.expander("⚡ Optimizations"):
         for opt in st.session_state.analysis_results.get("optimizations", []):
@@ -117,8 +119,7 @@ else:
             st.write(f"- {exp}")
 
 # Analysis Execution
-if st.button("🚀 Analyze Code") and code_text.strip():
-    st.session_state.current_code = code_text
+if st.button("🚀 Analyze Code") and st.session_state.current_code.strip():
     with st.spinner("🔍 Analyzing code..."):
-        st.session_state.analysis_results = analyze_code(code_text, language)
+        st.session_state.analysis_results = analyze_code(st.session_state.current_code, st.session_state.detected_language)
         st.experimental_rerun()
