@@ -15,28 +15,29 @@ if 'analysis_results' not in st.session_state:
 if 'current_code' not in st.session_state:
     st.session_state.current_code = ""
 
-# --- Credential Handling (No Streamlit commands here) ---
+# --- ✅ Fix: Load Credentials from Streamlit Secrets ---
 CREDENTIALS = None
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_API_KEY = None
 
 try:
-    # Load Google Cloud credentials
-    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-    if credentials_json:
-        creds_dict = json.loads(credentials_json)
-        CREDENTIALS = service_account.Credentials.from_service_account_info(creds_dict)
-        
-    # Configure Gemini
-    if GOOGLE_API_KEY:
-        genai.configure(api_key=GOOGLE_API_KEY)
-        
-except Exception as cred_error:
-    st.error("⚠️ Initialization Error - Check configuration")
+    # Load Google API Key from Streamlit Secrets
+    GOOGLE_API_KEY = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=GOOGLE_API_KEY)
+    
+    # Load Google Cloud Credentials
+    credentials_info = st.secrets["gcp_service_account"]
+    CREDENTIALS = service_account.Credentials.from_service_account_info(credentials_info)
+
+    st.success(f"✅ Credentials Loaded for Google Cloud Project: {credentials_info['project_id']}")
+
+except KeyError as e:
+    st.error(f"❌ Missing Secret: {e} - Please check Streamlit secrets")
+    st.stop()
+except Exception as e:
+    st.error(f"❌ Credential Load Error: {str(e)}")
     st.stop()
 
-# --- Streamlit UI Starts Here ---
-st.title("🛠️ AI-Powered Code Debugger")
-
+# --- ✅ Validate Services ---
 def validate_services():
     """Check required services are available"""
     errors = []
@@ -48,7 +49,7 @@ def validate_services():
 
 # Show configuration errors at top
 if service_errors := validate_services():
-    st.error("CRITICAL CONFIGURATION ISSUES:")
+    st.error("❌ CRITICAL CONFIGURATION ISSUES:")
     for error in service_errors:
         st.write(f"- {error}")
     st.stop()
@@ -100,7 +101,6 @@ def extract_code_from_image(image):
         return f"Error: {str(e)}"
 
 # Streamlit UI Configuration
-st.set_page_config(page_title="AI Code Debugger", layout="wide")
 st.title("🛠️ AI-Powered Code Debugger")
 
 # Input Methods
