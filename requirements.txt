@@ -1,5 +1,18 @@
-google-generativeai
-google-cloud-vision
-streamlit
+# Streamlit for UI
+streamlit==1.30.0
 
+# Google Cloud SDK (For Vision API & Authentication)
+google-auth==2.27.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+google-api-python-client==2.125.0
+google-cloud-vision==3.4.4
 
+# Gemini AI SDK (For AI Debugging)
+google-generativeai==0.4.1
+
+# Other Required Libraries
+protobuf==4.25.3
+requests==2.31.0
+pandas==2.2.0
+numpy==1.26.4
