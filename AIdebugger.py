@@ -41,82 +41,28 @@ MODEL = genai.GenerativeModel('gemini-pro',
     )
 )
 
-# Code Analysis Functions
-def analyze_code(code_snippet: str, language: str = "python") -> Dict:
-    """Perform code analysis with error handling"""
-    if not code_snippet.strip():
-        return {"error": "⚠️ No code provided"}
-
-    prompt = f"""Analyze this {language} code and provide:
-    ```{language}
-    {code_snippet}
-    ```
-    Format response as:
-    ### BUGS
-    - [List line-specific issues]
-    ### FIXES
-    - [Step-by-step solutions]
-    ### CORRECTED_CODE
-    ```{language}
-    [Corrected code]
-    ```
-    ### OPTIMIZATIONS
-    - [Performance improvements]
-    ### EXPLANATION
-    - [Technical rationale]
-    """
-    
-    try:
-        response = MODEL.generate_content(prompt)
-        return parse_analysis_response(response.text, language) if response else {"error": "⚠️ Empty response"}
-    except Exception as e:
-        return {"error": f"Analysis failed: {str(e)}"}
-
-def parse_analysis_response(response_text: str, language: str) -> Dict:
-    """Parse AI response into structured format"""
-    sections = {
-        "bugs": [], "fixes": [], 
-        "corrected_code": "", 
-        "optimizations": [], 
-        "explanation": []
-    }
-    
-    current_section = None
-    for line in response_text.split('\n'):
-        if "CORRECTED_CODE" in line:
-            current_section = "corrected_code"
-            continue
-        if line.startswith("###"):
-            current_section = line[4:].lower().replace(" ", "_")
-            continue
-        if current_section and line.strip():
-            if current_section == "corrected_code":
-                sections["corrected_code"] += line + "\n"
-            else:
-                sections[current_section].append(line.strip())
-    
-    sections["corrected_code"] = sections["corrected_code"].strip()
-    return sections
-
-# Image Processing
-def extract_code_from_image(image) -> str:
-    """Extract code from image using Google Vision"""
-    if not credentials_json:
-        return "⚠️ Invalid credentials"
-    
-    try:
-        client = vision.ImageAnnotatorClient(credentials=credentials)
-        content = image.read()
-        image = vision.Image(content=content)
-        response = client.text_detection(image=image)
-        return '\n'.join([line.strip() for line in response.text_annotations[0].description.split('\n') if line.strip()])
-    except Exception as e:
-        return f"⚠️ OCR Error: {str(e)}"
+# AI Assistant Sidebar
+def ai_assistant():
+    st.sidebar.title("🧠 AI Assistant")
+    st.sidebar.write("Ask coding questions or get debugging help!")
+    sidebar_query = st.sidebar.text_input("Your question:")
+    if sidebar_query:
+        response = MODEL.generate_content(sidebar_query)
+        st.sidebar.write(response.text if response else "⚠️ No response")
+    st.sidebar.markdown("---")
+    st.sidebar.info("💡 **Usage Tips**\n"
+                    "1. Upload clear code images\n"
+                    "2. Review analysis sections\n"
+                    "3. Ask follow-up questions\n"
+                    "4. Implement suggestions")
 
 # Streamlit UI
 st.set_page_config(page_title="AI Code Debugger", layout="wide")
 st.title("🛠️ AI-Powered Code Debugger")
 st.write("Upload code via image/file or paste directly for analysis")
+
+# Initialize AI Assistant
+ai_assistant()
 
 # Input Methods
 input_method = st.radio("Choose input method:", 
