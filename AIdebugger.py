@@ -23,13 +23,23 @@ if credentials_json:
     try:
         credentials_dict = json.loads(credentials_json)
         credentials = service_account.Credentials.from_service_account_info(credentials_dict)
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcp_credentials.json"
         print("✅ Google Cloud credentials successfully loaded!")
+        print("🔍 PROJECT ID:", credentials.project_id)
+        print("🔍 CLIENT EMAIL:", credentials.service_account_email)
     except Exception as e:
         print(f"⚠️ Error loading credentials: {str(e)}")
         credentials = None
 else:
     print("⚠️ GOOGLE_APPLICATION_CREDENTIALS_JSON is missing!")
     credentials = None
+
+# Test authentication
+try:
+    client = vision.ImageAnnotatorClient(credentials=credentials)
+    print("✅ Successfully connected to Google Cloud Vision API!")
+except Exception as e:
+    print(f"⚠️ Failed to connect to Vision API: {str(e)}")
 
 # Configure Gemini API
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
@@ -66,14 +76,19 @@ def extract_code_from_image(image) -> str:
     """Extract code from image using Google Vision"""
     if not credentials:
         return "⚠️ Invalid credentials: Check your Google Cloud setup."
-    
+
     try:
         client = vision.ImageAnnotatorClient(credentials=credentials)
         content = image.read()
         image = vision.Image(content=content)
         response = client.text_detection(image=image)
+        
+        if response.error.message:
+            return f"⚠️ Vision API Error: {response.error.message}"
+        
         if response.text_annotations:
-            return response.text_annotations[0].description
+            return response.text_annotations[0].description.strip()
+        
         return "⚠️ No text detected in image."
     except Exception as e:
         return f"⚠️ OCR Error: {str(e)}"
