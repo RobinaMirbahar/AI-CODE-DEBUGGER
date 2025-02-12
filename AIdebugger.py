@@ -16,15 +16,20 @@ if 'current_code' not in st.session_state:
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
-# Load credentials from GitHub Secrets
+# Load credentials correctly from GitHub Secrets
 credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
 if credentials_json:
-    credentials = json.loads(credentials_json)
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS_JSON"] = json.dumps(credentials)
-    print("✅ Google Cloud credentials successfully loaded from GitHub Secrets!")
+    try:
+        credentials_dict = json.loads(credentials_json)
+        credentials = service_account.Credentials.from_service_account_info(credentials_dict)
+        print("✅ Google Cloud credentials successfully loaded!")
+    except Exception as e:
+        print(f"⚠️ Error loading credentials: {str(e)}")
+        credentials = None
 else:
-    print("⚠️ GOOGLE_APPLICATION_CREDENTIALS_JSON is missing! Add it as a GitHub secret.")
+    print("⚠️ GOOGLE_APPLICATION_CREDENTIALS_JSON is missing!")
+    credentials = None
 
 # Configure Gemini API
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
@@ -59,8 +64,8 @@ def ai_assistant():
 # Image Processing
 def extract_code_from_image(image) -> str:
     """Extract code from image using Google Vision"""
-    if not credentials_json:
-        return "⚠️ Invalid credentials"
+    if not credentials:
+        return "⚠️ Invalid credentials: Check your Google Cloud setup."
     
     try:
         client = vision.ImageAnnotatorClient(credentials=credentials)
