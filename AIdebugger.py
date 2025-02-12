@@ -80,7 +80,12 @@ def analyze_code(code: str, language: str) -> dict:
         Code:\n{code}"""
         
         response = MODEL.generate_content(prompt)
-        return json.loads(response.text.strip("```json "))
+        if response and response.text:
+            return json.loads(response.text.strip("```json "))
+        else:
+            return {"error": "No response from AI model"}
+    except json.JSONDecodeError:
+        return {"error": "❌ Failed to parse AI response"}
     except Exception as e:
         return {"error": str(e)}
 
