@@ -6,6 +6,7 @@ from google.oauth2 import service_account
 import subprocess
 from datetime import datetime
 from typing import Dict, List
+import os
 
 # Initialize session state
 if 'analysis_results' not in st.session_state:
@@ -15,17 +16,18 @@ if 'current_code' not in st.session_state:
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
-# Configure Google Cloud Credentials
-def set_google_credentials():
-    try:
-        service_account_config = dict(st.secrets["gcp_service_account"])
-        return service_account.Credentials.from_service_account_info(service_account_config)
-    except Exception as e:
-        st.error(f"Credential Error: {str(e)}")
-        return None
+# Load credentials from GitHub Secrets
+credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
-# Configure Gemini AI
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+if credentials_json:
+    credentials = json.loads(credentials_json)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS_JSON"] = json.dumps(credentials)
+    print("✅ Google Cloud credentials successfully loaded from GitHub Secrets!")
+else:
+    print("⚠️ GOOGLE_APPLICATION_CREDENTIALS_JSON is missing! Add it as a GitHub secret.")
+
+# Configure Gemini API
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 MODEL = genai.GenerativeModel('gemini-pro',
     safety_settings={
         'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
@@ -99,8 +101,7 @@ def parse_analysis_response(response_text: str, language: str) -> Dict:
 # Image Processing
 def extract_code_from_image(image) -> str:
     """Extract code from image using Google Vision"""
-    credentials = set_google_credentials()
-    if not credentials:
+    if not credentials_json:
         return "⚠️ Invalid credentials"
     
     try:
@@ -152,7 +153,6 @@ if st.button("🚀 Analyze Code") and code_text.strip():
     st.session_state.current_code = code_text
     with st.spinner("🔍 Analyzing code..."):
         st.session_state.analysis_results = analyze_code(code_text, language)
-        st.session_state.chat_history = []
 
 # Display Results
 if st.session_state.analysis_results:
@@ -165,7 +165,7 @@ if st.session_state.analysis_results:
         with st.expander("🐛 Identified Bugs", expanded=True):
             for bug in results.get("bugs", []):
                 st.error(f"- {bug}")
-                
+        
         with st.expander("🛠️ Suggested Fixes"):
             for fix in results.get("fixes", []):
                 st.info(f"- {fix}")
@@ -180,66 +180,3 @@ if st.session_state.analysis_results:
         with st.expander("📚 Explanation"):
             for exp in results.get("explanation", []):
                 st.write(f"- {exp}")
-
-# Interactive Chat
-if st.session_state.analysis_results and not "error" in st.session_state.analysis_results:
-    st.markdown("---")
-    st.subheader("💬 Analysis Chat")
-    
-    # Display chat history
-    for msg in st.session_state.chat_history:
-        role = "👤 You" if msg["role"] == "user" else "🤖 Assistant"
-        st.markdown(f"**{role}**: {msg['content']}")
-    
-    # Chat input with empty key
-    user_query = st.text_input("Ask about the analysis:", key="chat_query")
-    
-    # Only process non-empty queries
-    if user_query and user_query.strip():
-        # Add user message to history
-        st.session_state.chat_history.append({
-            "role": "user",
-            "content": user_query.strip(),
-            "timestamp": str(datetime.now())
-        })
-        
-        # Generate AI response
-        try:
-            chat_prompt = f"""Context:
-            {st.session_state.current_code}
-            
-            Question: {user_query}
-            
-            Provide a concise technical answer:
-            """
-            
-            response = MODEL.generate_content(chat_prompt)
-            if response and response.text:
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": response.text,
-                    "timestamp": str(datetime.now())
-                })
-                
-                # Clear input and prevent rerun loop
-                st.session_state.chat_query = ""
-                st.rerun()
-                
-        except Exception as e:
-            st.error(f"Chat error: {str(e)}")
-            st.session_state.chat_history.pop()  # Remove last user input on error
-
-# Sidebar Components
-st.sidebar.title("🧠 AI Assistant")
-st.sidebar.write("Ask coding questions or get debugging help!")
-sidebar_query = st.sidebar.text_input("Your question:")
-if sidebar_query:
-    response = MODEL.generate_content(sidebar_query)
-    st.sidebar.write(response.text if response else "⚠️ No response")
-
-st.sidebar.markdown("---")
-st.sidebar.info("💡 **Usage Tips**\n"
-                "1. Upload clear code images\n"
-                "2. Review analysis sections\n"
-                "3. Ask follow-up questions\n"
-                "4. Implement suggestions")
