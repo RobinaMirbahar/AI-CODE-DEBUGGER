@@ -51,7 +51,7 @@ MODEL = genai.GenerativeModel('gemini-pro',
         'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
     },
     generation_config=genai.types.GenerationConfig(
-        max_output_tokens=4000,
+        max_output_tokens=2000,
         temperature=0.25
     )
 )
@@ -78,10 +78,11 @@ def analyze_code(code: str, language: str) -> Dict:
 
         response = MODEL.generate_content(prompt)
         
+        print("🔍 Debug: API Response:", response.text[:500])  # Print first 500 characters
+        
         if not response.text:
             return {"error": "❌ No response from AI model"}
             
-        # Clean Gemini's response
         cleaned_response = response.text.replace("```json", "").replace("```", "")
         return json.loads(cleaned_response)
         
@@ -90,83 +91,34 @@ def analyze_code(code: str, language: str) -> Dict:
     except Exception as e:
         return {"error": f"❌ Analysis failed: {str(e)}"}
 
-# AI Assistant Sidebar
-def ai_assistant():
-    st.sidebar.title("🧠 AI Assistant")
-    st.sidebar.write("Ask coding questions or get debugging help!")
-    sidebar_query = st.sidebar.text_input("Your question:")
-    if sidebar_query:
-        response = MODEL.generate_content(sidebar_query)
-        st.sidebar.write(response.text if response else "⚠️ No response")
-    st.sidebar.markdown("---")
-    st.sidebar.info("💡 **Usage Tips**\n"
-                    "1. Upload clear code images\n"
-                    "2. Review analysis sections\n"
-                    "3. Ask follow-up questions\n"
-                    "4. Implement suggestions")
-
-# Image Processing
-def extract_code_from_image(image) -> str:
-    """Extract code from image using Google Vision"""
-    if not credentials:
-        return "⚠️ Invalid credentials: Check your Google Cloud setup."
-
-    try:
-        client = vision.ImageAnnotatorClient(credentials=credentials)
-        content = image.read()
-        image = vision.Image(content=content)
-        response = client.text_detection(image=image)
-        
-        if response.error.message:
-            return f"⚠️ Vision API Error: {response.error.message}"
-        
-        if response.text_annotations:
-            return response.text_annotations[0].description.strip()
-        
-        return "⚠️ No text detected in image."
-    except Exception as e:
-        return f"⚠️ OCR Error: {str(e)}"
-
-# Streamlit UI
-st.set_page_config(page_title="AI Code Debugger", layout="wide")
-st.title("🛠️ AI-Powered Code Debugger")
-st.write("Upload code via image/file or paste directly for analysis")
-
-# Initialize AI Assistant
-ai_assistant()
-
-# Input Methods
-input_method = st.radio("Choose input method:", 
-                       ["📷 Image Upload", "📁 File Upload", "📝 Paste Code"],
-                       horizontal=True)
-
-code_text = ""
-language = "python"
-
-# Handle Image Upload
-if input_method == "📷 Image Upload":
-    image_file = st.file_uploader("Upload code image", type=["png", "jpg", "jpeg"])
-    if image_file:
-        code_text = extract_code_from_image(image_file)
-        st.code(code_text, language="python")
-
-# Handle File Upload
-elif input_method == "📁 File Upload":
-    code_file = st.file_uploader("Upload code file", type=["py", "java", "js"])
-    if code_file:
-        code_text = code_file.read().decode("utf-8")
-        ext = code_file.name.split(".")[-1]
-        language = {"py": "python", "java": "java", "js": "javascript"}.get(ext, "python")
-        st.code(code_text, language=language)
-
-# Handle Paste Code
+# Display Analysis Results
+if "error" in st.session_state.analysis_results:
+    st.error(st.session_state.analysis_results["error"])
 else:
-    code_text = st.text_area("Paste your code here:", height=300)
-    if code_text:
-        st.code(code_text, language="python")
+    st.subheader("🔍 Analysis Results")
+    
+    with st.expander("🐛 Identified Bugs", expanded=True):
+        for bug in st.session_state.analysis_results.get("bugs", []):
+            st.error(f"- {bug}")
+    
+    with st.expander("🛠️ Suggested Fixes"):
+        for fix in st.session_state.analysis_results.get("fixes", []):
+            st.info(f"- {fix}")
+    
+    with st.expander("✅ Corrected Code"):
+        st.code(st.session_state.analysis_results.get("corrected_code", ""), language=language)
+    
+    with st.expander("⚡ Optimizations"):
+        for opt in st.session_state.analysis_results.get("optimizations", []):
+            st.success(f"- {opt}")
+    
+    with st.expander("📚 Explanation"):
+        for exp in st.session_state.analysis_results.get("explanation", []):
+            st.write(f"- {exp}")
 
 # Analysis Execution
 if st.button("🚀 Analyze Code") and code_text.strip():
     st.session_state.current_code = code_text
     with st.spinner("🔍 Analyzing code..."):
         st.session_state.analysis_results = analyze_code(code_text, language)
+        st.experimental_rerun()
