@@ -10,13 +10,37 @@ from typing import Dict, List
 # Set page config FIRST
 st.set_page_config(page_title="AI Code Debugger", layout="wide")
 
+# ========== SIDEBAR ==========
+with st.sidebar:
+    st.title("🧠 AI Assistant")
+    st.markdown("---")
+    
+    # Chat history
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+    
+    # Chat input
+    user_query = st.chat_input("Ask coding questions...")
+    
+    st.markdown("---")
+    st.subheader("💡 Usage Tips")
+    st.markdown("""
+    1. Upload clear code images
+    2. Review analysis sections
+    3. Ask follow-up questions
+    4. Implement suggestions
+    """)
+
+# ========== MAIN APP ==========
 # Initialize session state
 if 'analysis_results' not in st.session_state:
     st.session_state.analysis_results = {}
 if 'current_code' not in st.session_state:
     st.session_state.current_code = ""
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
 
 # Load credentials
 credentials = None
@@ -26,7 +50,7 @@ try:
     if cred_json := os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON"):
         credentials_dict = json.loads(cred_json)
         required_fields = ["type", "project_id", "private_key_id", 
-                          "private_key", "client_email", "client_id"]
+                         "private_key", "client_email", "client_id"]
         
         missing = [f for f in required_fields if f not in credentials_dict]
         if missing:
@@ -66,121 +90,93 @@ MODEL = genai.GenerativeModel('gemini-pro',
     )
 )
 
-# ========== SIDEBAR ==========
-with st.sidebar:
-    st.title("🧠 AI Assistant")
-    
-    # Chat history
-    for message in st.session_state.chat_history:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-    
-    # Chat input
-    sidebar_query = st.chat_input("Ask coding questions...")
-    if sidebar_query and MODEL:
-        # Add user question to history
-        st.session_state.chat_history.append({
-            "role": "user",
-            "content": sidebar_query
-        })
-        
-        # Generate response
-        try:
-            response = MODEL.generate_content(sidebar_query)
-            if response.text:
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": response.text
-                })
-                st.rerun()
-        except Exception as e:
-            st.error(f"Error generating response: {str(e)}")
-    
-    st.markdown("---")
-    st.subheader("💡 Usage Tips")
-    st.markdown("""
-    1. Upload clear code images
-    2. Review analysis sections
-    3. Ask follow-up questions
-    4. Implement suggestions
-    """)
-    
-    st.markdown("---")
-    st.subheader("📝 Feedback")
-    feedback = st.text_area("Help us improve:")
-    if st.button("Send Feedback"):
-        st.success("Thank you for your feedback!")
-
-# ========== MAIN CONTENT ==========
-st.title("🛠️ AI-Powered Code Debugger")
-
 def analyze_code(code: str, language: str) -> Dict:
-    """Analyze code with enhanced JSON parsing"""
+    """Robust code analysis with multi-stage parsing"""
     try:
         prompt = f"""**CODE ANALYSIS REQUEST**
-Analyze this {language} code and provide output in EXACTLY this JSON format:
+Return JSON response in EXACTLY this format:
 {{
-    "bugs": ["list of bugs with line numbers"],
-    "fixes": ["specific fixes"],
-    "corrected_code": "full corrected code as string",
-    "optimizations": ["performance improvements"],
-    "explanation": ["technical explanations"]
+    "bugs": ["Line 5: Missing semicolon"],
+    "fixes": ["Add semicolon at line 5"],
+    "corrected_code": "function example() {{\\n  console.log('fixed');\\n}}",
+    "optimizations": ["Use const instead of let"],
+    "explanation": ["Semicolons are required..."]
 }}
 
 **RULES:**
 1. Output ONLY valid JSON
-2. No markdown formatting
-3. Escape double quotes
-4. No comments
-5. Validate JSON syntax
+2. Escape quotes with \\
+3. No markdown/triple backticks
+4. No trailing commas
+5. Use double quotes
 
-**CODE:**
+**{language.upper()} CODE:**
 {code}
 """
+
         response = MODEL.generate_content(prompt)
         
         if not response.text:
             return {"error": "❌ Empty AI response"}
 
-        # Enhanced cleaning
-        raw_response = response.text.strip()
-        cleaned = re.sub(r'^```json\s*|\s*```\s*$', '', raw_response, flags=re.IGNORECASE)
-        
+        # Clean response
+        raw_text = response.text.strip()
+        cleaned = re.sub(r'(?i)^\s*(```json|JSON:?|```|\{)"?', '', raw_text)
+        cleaned = re.sub(r'(?i)"?\s*(```|}|\,)\s*$', '', cleaned)
+        cleaned = re.sub(r'[\x00-\x1F]', '', cleaned)  # Remove control chars
+
+        # Parse and validate
         try:
             parsed = json.loads(cleaned)
-            required_keys = {"bugs", "fixes", "corrected_code", 
-                            "optimizations", "explanation"}
-            
-            if not required_keys.issubset(parsed.keys()):
-                missing = required_keys - parsed.keys()
-                return {"error": f"❌ Missing keys: {', '.join(missing)}"}
-                
-            return parsed
-            
-        except json.JSONDecodeError as jde:
-            return {"error": f"❌ JSON Error: {str(jde)}\nContext: {cleaned[:200]}..."}
-            
+        except json.JSONDecodeError:
+            # Attempt JSON repair
+            repaired = cleaned.replace("'", '"') \
+                              .replace("True", "true") \
+                              .replace("False", "false") \
+                              .replace("None", "null")
+            parsed = json.loads(repaired)
+
+        # Validate structure
+        required = {
+            "bugs": list,
+            "fixes": list,
+            "corrected_code": str,
+            "optimizations": list,
+            "explanation": list
+        }
+        
+        for key, dtype in required.items():
+            if key not in parsed:
+                return {"error": f"Missing key: {key}"}
+            if not isinstance(parsed[key], dtype):
+                return {"error": f"Invalid type for {key}: {type(parsed[key])}"}
+
+        return parsed
+        
     except Exception as e:
-        return {"error": f"❌ Analysis failed: {str(e)}"}
+        st.error(f"**Raw Response:**\n{raw_text[:500]}")
+        st.error(f"**Cleaned Response:**\n{cleaned[:500]}")
+        return {"error": f"Analysis failed: {str(e)}"}
 
 def extract_code_from_image(image) -> str:
-    """Extract code from image with error handling"""
+    """OCR with enhanced error handling"""
     try:
         client = vision.ImageAnnotatorClient(credentials=credentials)
         content = image.read()
-        img = vision.Image(content=content)
-        response = client.text_detection(image=img)
+        response = client.text_detection(image=vision.Image(content=content))
         
         if response.error.message:
-            return f"⚠️ Vision API Error: {response.error.message}"
+            return f"Vision API Error: {response.error.message}"
             
-        return response.text_annotations[0].description.strip() if response.text_annotations else "⚠️ No text detected"
+        return response.text_annotations[0].description.strip() if response.text_annotations else "No text detected"
         
     except Exception as e:
-        return f"⚠️ OCR Error: {str(e)}"
+        return f"OCR Error: {str(e)}"
 
-# Input Methods
-input_method = st.radio("Choose input method:", 
+# UI Components
+st.title("🛠️ AI-Powered Code Debugger")
+
+input_method = st.radio("Input Method:", 
                        ["📷 Image", "📁 File", "📝 Paste"],
                        horizontal=True)
 
@@ -242,3 +238,17 @@ if st.session_state.analysis_results:
         with st.expander("📚 Explanation"):
             for exp in results.get("explanation", []):
                 st.write(f"- {exp}")
+
+# Handle sidebar chat after main content
+if user_query and MODEL:
+    try:
+        st.session_state.chat_history.append({"role": "user", "content": user_query})
+        response = MODEL.generate_content(user_query)
+        if response.text:
+            st.session_state.chat_history.append({
+                "role": "assistant",
+                "content": response.text
+            })
+            st.rerun()
+    except Exception as e:
+        st.sidebar.error(f"Chat error: {str(e)}")
