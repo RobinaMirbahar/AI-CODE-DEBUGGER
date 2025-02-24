@@ -133,7 +133,7 @@ def extract_code_from_image(image) -> Tuple[bool, str]:
         response = client.text_detection(
             image=vision.Image(content=content),
             timeout=15,
-            retry=vision.types.Retry(deadline=30)
+            retry=vision.types.Retry(deadline=30) )
         
         if response.error.message:
             return False, f"API Error: {response.error.message}"
