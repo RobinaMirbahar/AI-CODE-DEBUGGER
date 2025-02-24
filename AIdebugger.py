@@ -19,12 +19,17 @@ MAX_CODE_LENGTH = 5000
 st.set_page_config(page_title="AI Code Debugger", layout="wide")
 
 # ========== SESSION STATE ==========
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
-if 'analysis_results' not in st.session_state:
-    st.session_state.analysis_results = {}
-if 'current_code' not in st.session_state:
-    st.session_state.current_code = ""
+session_defaults = {
+    'chat_history': [],
+    'analysis_results': {},
+    'current_code': "",
+    'processed_file_id': None,
+    'current_input_method': None
+}
+
+for key, value in session_defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
 # ========== SIDEBAR ==========
 with st.sidebar:
@@ -37,7 +42,7 @@ with st.sidebar:
     st.subheader("💡 Usage Tips")
     st.markdown("""
     - **Images:** Clear screenshots <5MB
-    - **Files:** Supported: Python, Java, JS, C++, HTML
+    - **Files:** Supported: Python, Java, JS, C++
     - **Code:** Max 5000 characters
     - **Chat:** Ask follow-up questions
     """)
@@ -117,8 +122,8 @@ def validate_code_file(file) -> Tuple[bool, str, str]:
     except Exception as e:
         return False, "", f"Validation error: {str(e)}"
 
-def extract_code_from_image(image) -> str:
-    """OCR processing with enhanced validation"""
+def extract_code_from_image(image) -> Tuple[bool, str]:
+    """OCR processing with proper state handling"""
     try:
         client = vision.ImageAnnotatorClient(
             credentials=credentials,
@@ -129,24 +134,23 @@ def extract_code_from_image(image) -> str:
             image=vision.Image(content=content),
             timeout=15,
             retry=vision.types.Retry(deadline=30)
-        )
         
         if response.error.message:
-            return f"API Error: {response.error.message}"
+            return False, f"API Error: {response.error.message}"
             
         if not response.text_annotations:
-            return "No text detected"
+            return False, "No text detected"
             
         raw_text = response.text_annotations[0].description
-        cleaned = re.sub(r'\n{3,}', '\n\n', raw_text)
-        return cleaned.strip()
+        cleaned = re.sub(r'\n{3,}', '\n\n', raw_text).strip()
+        return True, cleaned
     except (GoogleAPICallError, RetryError) as e:
-        return f"API Error: {str(e)}"
+        return False, f"API Error: {str(e)}"
     except Exception as e:
-        return f"Processing Error: {str(e)}"
+        return False, f"Processing Error: {str(e)}"
 
 def analyze_code(code: str, language: str) -> Dict:
-    """Code analysis with robust error handling"""
+    """Code analysis with state tracking"""
     try:
         prompt = f"""**CODE ANALYSIS REQUEST**
 Return JSON in this EXACT format:
@@ -192,8 +196,14 @@ st.title("🛠️ AI-Powered Code Debugger")
 input_method = st.radio(
     "SELECT INPUT METHOD:",
     ["📷 Upload Image", "📁 Upload File", "📝 Paste Code"],
-    horizontal=True
+    horizontal=True,
+    key="input_method"
 )
+
+# Reset state when input method changes
+if st.session_state.current_input_method != input_method:
+    st.session_state.processed_file_id = None
+    st.session_state.current_input_method = input_method
 
 code_text = ""
 language = "python"
@@ -208,18 +218,33 @@ if input_method == "📷 Upload Image":
     )
     
     if img_file:
-        is_valid, validation_msg = validate_image(img_file)
-        if not is_valid:
-            error_message = f"❌ Invalid image: {validation_msg}"
-        else:
+        current_file_id = f"image_{img_file.file_id}"
+        
+        if st.session_state.processed_file_id != current_file_id:
             with st.spinner("Extracting code (15s max)..."):
-                code_text = extract_code_from_image(img_file)
+                is_valid, validation_msg = validate_image(img_file)
                 
-            if "Error" in code_text:
-                error_message = code_text
-            else:
-                st.success("✅ Code extracted successfully!")
-                st.code(code_text, language="text")
+                if not is_valid:
+                    error_message = f"❌ Invalid image: {validation_msg}"
+                    st.session_state.processed_file_id = None
+                else:
+                    success, result = extract_code_from_image(img_file)
+                    
+                    if success:
+                        code_text = result
+                        st.session_state.processed_file_id = current_file_id
+                        st.session_state.current_code = code_text
+                    else:
+                        error_message = f"❌ Extraction failed: {result}"
+                        st.session_state.processed_file_id = None
+        else:
+            code_text = st.session_state.current_code
+        
+        if code_text:
+            st.success("✅ Code extracted successfully!")
+            st.code(code_text, language="text")
+        if error_message:
+            st.error(error_message)
 
 # File Upload Handling
 elif input_method == "📁 Upload File":
@@ -230,17 +255,32 @@ elif input_method == "📁 Upload File":
     )
     
     if code_file:
-        is_valid, content, ext = validate_code_file(code_file)
-        if not is_valid:
-            error_message = f"❌ Invalid file: {content}"
+        current_file_id = f"file_{code_file.file_id}"
+        
+        if st.session_state.processed_file_id != current_file_id:
+            with st.spinner("Validating file..."):
+                is_valid, content, ext = validate_code_file(code_file)
+                
+            if not is_valid:
+                error_message = f"❌ Invalid file: {content}"
+                st.session_state.processed_file_id = None
+            else:
+                code_text = content
+                language = {
+                    "py": "python", "java": "java", 
+                    "js": "javascript", "cpp": "cpp",
+                    "html": "html", "css": "css", "php": "php"
+                }.get(ext, "text")
+                st.session_state.processed_file_id = current_file_id
+                st.session_state.current_code = code_text
         else:
-            code_text = content
-            language = {
-                "py": "python", "java": "java", "js": "javascript",
-                "cpp": "cpp", "html": "html", "css": "css", "php": "php"
-            }.get(ext, "text")
+            code_text = st.session_state.current_code
+        
+        if code_text:
             st.success(f"✅ Valid {ext.upper()} file uploaded!")
             st.code(code_text, language=language)
+        if error_message:
+            st.error(error_message)
 
 # Code Paste Handling
 else:
@@ -249,22 +289,21 @@ else:
         height=300,
         max_chars=MAX_CODE_LENGTH,
         placeholder="// Paste your code here...",
-        help=f"Max {MAX_CODE_LENGTH} characters"
+        help=f"Max {MAX_CODE_LENGTH} characters",
+        key="pasted_code"
     )
     if code_text:
+        st.session_state.current_code = code_text
         st.code(code_text, language="text")
 
-# Error Display
-if error_message:
-    st.error(error_message)
-    st.session_state.analysis_results = {}
-
 # Analysis Trigger
-if code_text.strip() and not error_message:
+if st.session_state.current_code.strip() and not error_message:
     if st.button("🚀 Analyze Code", use_container_width=True):
-        st.session_state.current_code = code_text
         with st.spinner("Analyzing code (20-30 seconds)..."):
-            st.session_state.analysis_results = analyze_code(code_text, language)
+            st.session_state.analysis_results = analyze_code(
+                st.session_state.current_code,
+                language
+            )
 
 # Results Display
 if st.session_state.analysis_results:
