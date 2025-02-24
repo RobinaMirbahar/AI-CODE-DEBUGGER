@@ -27,7 +27,7 @@ session_defaults = {
     'processed_file_id': None,
     'current_input_method': None,
     'file_extension': None,
-    'processing_done': False
+    'processing': False
 }
 
 for key, value in session_defaults.items():
@@ -126,16 +126,12 @@ def extract_code_from_image(image) -> Tuple[bool, str]:
     try:
         client = vision.ImageAnnotatorClient(
             credentials=credentials,
-            client_options={
-                "api_endpoint": "eu-vision.googleapis.com",
-                "timeout": 15.0
-            }
+            client_options={"api_endpoint": "eu-vision.googleapis.com"}
         )
         content = image.read()
         response = client.text_detection(
             image=vision.Image(content=content),
-            timeout=15,
-            retry=vision.types.Retry(deadline=15)
+            timeout=15
         )
         
         if response.error.message:
@@ -210,7 +206,7 @@ if st.session_state.current_input_method != input_method:
     st.session_state.processed_file_id = None
     st.session_state.current_input_method = input_method
     st.session_state.file_extension = None
-    st.session_state.processing_done = False
+    st.session_state.processing = False
 
 code_text = ""
 language = "python"
@@ -224,10 +220,11 @@ if input_method == "📷 Upload Image":
         help="Max 5MB, PNG/JPG/JPEG only"
     )
     
-    if img_file:
+    if img_file and not st.session_state.processing:
         current_file_id = f"image_{img_file.file_id}"
         
-        if st.session_state.processed_file_id != current_file_id or not st.session_state.processing_done:
+        if st.session_state.processed_file_id != current_file_id:
+            st.session_state.processing = True
             with st.spinner("Extracting code (15s max)..."):
                 try:
                     is_valid, validation_msg = validate_image(img_file)
@@ -242,19 +239,18 @@ if input_method == "📷 Upload Image":
                             code_text = result
                             st.session_state.processed_file_id = current_file_id
                             st.session_state.current_code = code_text
-                            st.session_state.processing_done = True
                         else:
                             error_message = f"❌ Extraction failed: {result}"
                             st.session_state.processed_file_id = None
                 finally:
-                    st.session_state.processing_done = True
-        
-        if st.session_state.processed_file_id == current_file_id and st.session_state.current_code:
-            st.success("✅ Code extracted successfully!")
-            st.code(st.session_state.current_code, language="text")
-        
-        if error_message:
-            st.error(error_message)
+                    st.session_state.processing = False
+
+    if st.session_state.processed_file_id:
+        st.success("✅ Code extracted successfully!")
+        st.code(st.session_state.current_code, language="text")
+    
+    if error_message:
+        st.error(error_message)
 
 # File Upload Handling
 elif input_method == "📁 Upload File":
@@ -264,10 +260,11 @@ elif input_method == "📁 Upload File":
         help=f"Supported formats: {', '.join(ALLOWED_CODE_EXTENSIONS)}"
     )
     
-    if code_file:
+    if code_file and not st.session_state.processing:
         current_file_id = f"file_{code_file.file_id}"
         
-        if st.session_state.processed_file_id != current_file_id or not st.session_state.processing_done:
+        if st.session_state.processed_file_id != current_file_id:
+            st.session_state.processing = True
             with st.spinner("Validating file..."):
                 try:
                     is_valid, content, ext = validate_code_file(code_file)
@@ -286,17 +283,16 @@ elif input_method == "📁 Upload File":
                         st.session_state.processed_file_id = current_file_id
                         st.session_state.current_code = code_text
                         st.session_state.file_extension = ext
-                        st.session_state.processing_done = True
                 finally:
-                    st.session_state.processing_done = True
-        
-        if st.session_state.processed_file_id == current_file_id and st.session_state.current_code:
-            ext = st.session_state.file_extension or "file"
-            st.success(f"✅ Valid {ext.upper()} file uploaded!")
-            st.code(st.session_state.current_code, language=language)
-        
-        if error_message:
-            st.error(error_message)
+                    st.session_state.processing = False
+
+    if st.session_state.processed_file_id:
+        ext = st.session_state.file_extension or "file"
+        st.success(f"✅ Valid {ext.upper()} file uploaded!")
+        st.code(st.session_state.current_code, language=language)
+    
+    if error_message:
+        st.error(error_message)
 
 # Code Paste Handling
 else:
@@ -347,7 +343,7 @@ if st.session_state.analysis_results:
 
 # Chat Interface
 user_query = st.chat_input("Ask questions about the code...")
-if user_query and MODEL:
+if user_query and MODEL and not st.session_state.processing:
     try:
         st.session_state.chat_history.append({"role": "user", "content": user_query})
         with st.spinner("Generating response..."):
@@ -357,6 +353,5 @@ if user_query and MODEL:
                     "role": "assistant",
                     "content": response.text
                 })
-                st.rerun()
     except Exception as e:
         st.error(f"Chat error: {str(e)}")
