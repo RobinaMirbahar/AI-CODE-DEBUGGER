@@ -7,7 +7,6 @@ import google.generativeai as genai
 from google.cloud import vision
 from google.oauth2 import service_account
 from google.api_core.exceptions import GoogleAPICallError, RetryError
-from typing import Tuple, Dict
 from concurrent.futures import TimeoutError
 
 # Constants
@@ -33,21 +32,6 @@ session_defaults = {
 for key, value in session_defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
-
-# ========== SIDEBAR ==========
-with st.sidebar:
-    st.title("🧠 AI Assistant")
-    st.markdown("---")
-    for msg in st.session_state.chat_history:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-    st.markdown("---")
-    st.subheader("💡 Usage Tips")
-    st.markdown("""
-    - **Images:** Clear screenshots <5MB
-    - **Files:** Supported: Python, Java, JS, C++
-    - **Code:** Max 5000 characters
-    """)
 
 # ========== CREDENTIAL HANDLING ==========
 try:
@@ -86,7 +70,7 @@ except Exception as e:
     st.stop()
 
 # ========== CORE FUNCTIONS ==========
-def validate_image(file) -> Tuple[bool, str]:
+def validate_image(file) -> tuple[bool, str]:
     try:
         file.seek(0, os.SEEK_END)
         file_size = file.tell()
@@ -102,7 +86,7 @@ def validate_image(file) -> Tuple[bool, str]:
     except Exception as e:
         return False, f"Validation error: {str(e)}"
 
-def validate_code_file(file) -> Tuple[bool, str, str]:
+def validate_code_file(file) -> tuple[bool, str, str]:
     try:
         filename = file.name.lower()
         ext = filename.split('.')[-1]
@@ -122,7 +106,7 @@ def validate_code_file(file) -> Tuple[bool, str, str]:
     except Exception as e:
         return False, "", f"Validation error: {str(e)}"
 
-def extract_code_from_image(image) -> Tuple[bool, str]:
+def extract_code_from_image(image) -> tuple[bool, str]:
     try:
         client = vision.ImageAnnotatorClient(
             credentials=credentials,
@@ -151,7 +135,7 @@ def extract_code_from_image(image) -> Tuple[bool, str]:
     except Exception as e:
         return False, f"Processing Error: {str(e)}"
 
-def analyze_code(code: str, language: str) -> Dict:
+def analyze_code(code: str, language: str) -> dict:
     try:
         prompt = f"""**CODE ANALYSIS REQUEST**
 Return JSON in this EXACT format:
@@ -190,6 +174,21 @@ Return JSON in this EXACT format:
     except Exception as e:
         return {"error": f"Analysis failed: {str(e)}"}
 
+# ========== SIDEBAR ==========
+with st.sidebar:
+    st.title("🧠 AI Assistant")
+    st.markdown("---")
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+    st.markdown("---")
+    st.subheader("💡 Usage Tips")
+    st.markdown("""
+    - **Images:** Clear screenshots <5MB
+    - **Files:** Supported: Python, Java, JS, C++
+    - **Code:** Max 5000 characters
+    """)
+
 # ========== MAIN INTERFACE ==========
 st.title("🛠️ AI-Powered Code Debugger")
 
@@ -207,10 +206,11 @@ if st.session_state.current_input_method != input_method:
     st.session_state.current_input_method = input_method
     st.session_state.file_extension = None
     st.session_state.processing = False
+    st.session_state.current_code = ""
+    st.session_state.analysis_results = {}
 
-code_text = ""
-language = "python"
 error_message = ""
+language = "text"
 
 # Image Upload Handling
 if input_method == "📷 Upload Image":
@@ -232,25 +232,20 @@ if input_method == "📷 Upload Image":
                     if not is_valid:
                         error_message = f"❌ Invalid image: {validation_msg}"
                         st.session_state.processed_file_id = None
+                        st.session_state.current_code = ""
                     else:
                         success, result = extract_code_from_image(img_file)
                         
                         if success:
-                            code_text = result
                             st.session_state.processed_file_id = current_file_id
-                            st.session_state.current_code = code_text
+                            st.session_state.current_code = result
+                            st.session_state.analysis_results = {}
                         else:
                             error_message = f"❌ Extraction failed: {result}"
                             st.session_state.processed_file_id = None
+                            st.session_state.current_code = ""
                 finally:
                     st.session_state.processing = False
-
-    if st.session_state.processed_file_id:
-        st.success("✅ Code extracted successfully!")
-        st.code(st.session_state.current_code, language="text")
-    
-    if error_message:
-        st.error(error_message)
 
 # File Upload Handling
 elif input_method == "📁 Upload File":
@@ -273,30 +268,23 @@ elif input_method == "📁 Upload File":
                         error_message = f"❌ Invalid file: {content}"
                         st.session_state.processed_file_id = None
                         st.session_state.file_extension = None
+                        st.session_state.current_code = ""
                     else:
-                        code_text = content
+                        st.session_state.processed_file_id = current_file_id
+                        st.session_state.current_code = content
+                        st.session_state.file_extension = ext
+                        st.session_state.analysis_results = {}
                         language = {
                             "py": "python", "java": "java", 
                             "js": "javascript", "cpp": "cpp",
                             "html": "html", "css": "css", "php": "php"
                         }.get(ext, "text")
-                        st.session_state.processed_file_id = current_file_id
-                        st.session_state.current_code = code_text
-                        st.session_state.file_extension = ext
                 finally:
                     st.session_state.processing = False
 
-    if st.session_state.processed_file_id:
-        ext = st.session_state.file_extension or "file"
-        st.success(f"✅ Valid {ext.upper()} file uploaded!")
-        st.code(st.session_state.current_code, language=language)
-    
-    if error_message:
-        st.error(error_message)
-
 # Code Paste Handling
 else:
-    code_text = st.text_area(
+    new_code = st.text_area(
         "Paste Code Here:",
         height=300,
         max_chars=MAX_CODE_LENGTH,
@@ -304,9 +292,18 @@ else:
         help=f"Max {MAX_CODE_LENGTH} characters",
         key="pasted_code"
     )
-    if code_text:
-        st.session_state.current_code = code_text
-        st.code(code_text, language="text")
+    if new_code != st.session_state.current_code:
+        st.session_state.current_code = new_code
+        st.session_state.analysis_results = {}
+
+# Display current code
+if st.session_state.current_code:
+    st.subheader("📄 Current Code")
+    st.code(st.session_state.current_code, language=language)
+
+# Error messages
+if error_message:
+    st.error(error_message)
 
 # Analysis Trigger
 if st.session_state.current_code.strip() and not error_message:
@@ -353,5 +350,6 @@ if user_query and MODEL and not st.session_state.processing:
                     "role": "assistant",
                     "content": response.text
                 })
+                st.rerun()
     except Exception as e:
         st.error(f"Chat error: {str(e)}")
