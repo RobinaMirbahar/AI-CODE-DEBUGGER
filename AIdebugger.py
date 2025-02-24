@@ -85,7 +85,6 @@ except Exception as e:
 
 # ========== CORE FUNCTIONS ==========
 def validate_image(file) -> Tuple[bool, str]:
-    """Validate image file before processing"""
     try:
         file.seek(0, os.SEEK_END)
         file_size = file.tell()
@@ -102,7 +101,6 @@ def validate_image(file) -> Tuple[bool, str]:
         return False, f"Validation error: {str(e)}"
 
 def validate_code_file(file) -> Tuple[bool, str, str]:
-    """Validate uploaded code file"""
     try:
         filename = file.name.lower()
         ext = filename.split('.')[-1]
@@ -123,7 +121,6 @@ def validate_code_file(file) -> Tuple[bool, str, str]:
         return False, "", f"Validation error: {str(e)}"
 
 def extract_code_from_image(image) -> Tuple[bool, str]:
-    """OCR processing with proper state handling"""
     try:
         client = vision.ImageAnnotatorClient(
             credentials=credentials,
@@ -133,7 +130,8 @@ def extract_code_from_image(image) -> Tuple[bool, str]:
         response = client.text_detection(
             image=vision.Image(content=content),
             timeout=15,
-            retry=vision.types.Retry(deadline=30) )
+            retry=vision.types.Retry(deadline=30)
+        )
         
         if response.error.message:
             return False, f"API Error: {response.error.message}"
@@ -150,7 +148,6 @@ def extract_code_from_image(image) -> Tuple[bool, str]:
         return False, f"Processing Error: {str(e)}"
 
 def analyze_code(code: str, language: str) -> Dict:
-    """Code analysis with state tracking"""
     try:
         prompt = f"""**CODE ANALYSIS REQUEST**
 Return JSON in this EXACT format:
@@ -221,7 +218,7 @@ if input_method == "📷 Upload Image":
         current_file_id = f"image_{img_file.file_id}"
         
         if st.session_state.processed_file_id != current_file_id:
-            with st.spinner("Extracting code (15s max)..."):
+            with st.spinner("Extracting code (max 15 seconds)..."):
                 is_valid, validation_msg = validate_image(img_file)
                 
                 if not is_valid:
@@ -237,12 +234,14 @@ if input_method == "📷 Upload Image":
                     else:
                         error_message = f"❌ Extraction failed: {result}"
                         st.session_state.processed_file_id = None
-        else:
-            code_text = st.session_state.current_code
+            
+            # Force UI update after processing
+            st.experimental_rerun()
         
-        if code_text:
+        if st.session_state.processed_file_id == current_file_id:
             st.success("✅ Code extracted successfully!")
-            st.code(code_text, language="text")
+            st.code(st.session_state.current_code, language="text")
+        
         if error_message:
             st.error(error_message)
 
@@ -273,12 +272,13 @@ elif input_method == "📁 Upload File":
                 }.get(ext, "text")
                 st.session_state.processed_file_id = current_file_id
                 st.session_state.current_code = code_text
-        else:
-            code_text = st.session_state.current_code
+            
+            st.experimental_rerun()
         
-        if code_text:
+        if st.session_state.processed_file_id == current_file_id:
             st.success(f"✅ Valid {ext.upper()} file uploaded!")
-            st.code(code_text, language=language)
+            st.code(st.session_state.current_code, language=language)
+        
         if error_message:
             st.error(error_message)
 
