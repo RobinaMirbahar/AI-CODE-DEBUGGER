@@ -2,10 +2,18 @@ import streamlit as st
 import json
 import os
 import re
+import imghdr
 import google.generativeai as genai
 from google.cloud import vision
 from google.oauth2 import service_account
 from google.api_core.exceptions import GoogleAPICallError, RetryError
+from typing import Tuple, Dict
+
+# Constants
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
+ALLOWED_IMAGE_TYPES = ["jpeg", "png", "jpg"]
+ALLOWED_CODE_EXTENSIONS = ["py", "java", "js", "cpp", "html", "css", "php"]
+MAX_CODE_LENGTH = 5000
 
 # Initialize page configuration
 st.set_page_config(page_title="AI Code Debugger", layout="wide")
@@ -28,13 +36,13 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("💡 Usage Tips")
     st.markdown("""
-    1. Upload images under 5MB
-    2. Supported formats: PNG, JPG
-    3. Clear code screenshots work best
-    4. Ask follow-up questions below
+    - **Images:** Clear screenshots <5MB
+    - **Files:** Supported: Python, Java, JS, C++, HTML
+    - **Code:** Max 5000 characters
+    - **Chat:** Ask follow-up questions
     """)
 
-# ========== CREDENTIALS ==========
+# ========== CREDENTIAL HANDLING ==========
 try:
     credentials = None
     google_api_key = os.getenv("GOOGLE_API_KEY")
@@ -54,52 +62,90 @@ try:
         )
     
     genai.configure(api_key=google_api_key)
+    MODEL = genai.GenerativeModel('gemini-pro',
+        safety_settings={
+            'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
+            'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+            'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+            'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
+        },
+        generation_config=genai.types.GenerationConfig(
+            max_output_tokens=4000,
+            temperature=0.25
+        )
+    )
 except Exception as e:
     st.error(f"Initialization error: {str(e)}")
     st.stop()
 
-# ========== AI CONFIG ==========
-MODEL = genai.GenerativeModel('gemini-pro',
-    safety_settings={
-        'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
-        'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-        'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-        'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
-    },
-    generation_config=genai.types.GenerationConfig(
-        max_output_tokens=4000,
-        temperature=0.25
-    )
-)
-
 # ========== CORE FUNCTIONS ==========
-def extract_code_from_image(image) -> str:
-    """Robust OCR with timeout and size checks"""
+def validate_image(file) -> Tuple[bool, str]:
+    """Validate image file before processing"""
     try:
-        # Validate image size
-        max_size = 5 * 1024 * 1024  # 5MB
-        content = image.read()
-        if len(content) > max_size:
-            return "Error: Image size exceeds 5MB limit"
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        if file_size > MAX_IMAGE_SIZE:
+            return False, f"File too large ({file_size//1024}KB > 5MB)"
+            
+        image_type = imghdr.what(file)
+        if image_type not in ALLOWED_IMAGE_TYPES:
+            return False, f"Unsupported format: {image_type or 'unknown'}"
+            
+        return True, ""
+    except Exception as e:
+        return False, f"Validation error: {str(e)}"
 
-        # Process image
-        client = vision.ImageAnnotatorClient(credentials=credentials)
+def validate_code_file(file) -> Tuple[bool, str, str]:
+    """Validate uploaded code file"""
+    try:
+        filename = file.name.lower()
+        ext = filename.split('.')[-1]
+        if ext not in ALLOWED_CODE_EXTENSIONS:
+            return False, "", f"Unsupported file type: .{ext}"
+            
+        content = file.read().decode('utf-8')
+        if len(content) > MAX_CODE_LENGTH:
+            return False, "", f"File too large ({len(content)} > {MAX_CODE_LENGTH} chars)"
+            
+        if not any(c in content for c in ['{', '(', ';', 'def', 'class', '<']):
+            return False, "", "File doesn't appear to contain code"
+            
+        return True, content, ext
+    except UnicodeDecodeError:
+        return False, "", "Invalid text encoding"
+    except Exception as e:
+        return False, "", f"Validation error: {str(e)}"
+
+def extract_code_from_image(image) -> str:
+    """OCR processing with enhanced validation"""
+    try:
+        client = vision.ImageAnnotatorClient(
+            credentials=credentials,
+            client_options={"api_endpoint": "eu-vision.googleapis.com"}
+        )
+        content = image.read()
         response = client.text_detection(
             image=vision.Image(content=content),
-            timeout=15  # 15 second timeout
+            timeout=15,
+            retry=vision.types.Retry(deadline=30)
         )
-
+        
         if response.error.message:
             return f"API Error: {response.error.message}"
             
-        return response.text_annotations[0].description.strip() if response.text_annotations else "No text detected"
-
+        if not response.text_annotations:
+            return "No text detected"
+            
+        raw_text = response.text_annotations[0].description
+        cleaned = re.sub(r'\n{3,}', '\n\n', raw_text)
+        return cleaned.strip()
     except (GoogleAPICallError, RetryError) as e:
         return f"API Error: {str(e)}"
     except Exception as e:
         return f"Processing Error: {str(e)}"
 
-def analyze_code(code: str, language: str) -> dict:
+def analyze_code(code: str, language: str) -> Dict:
     """Code analysis with robust error handling"""
     try:
         prompt = f"""**CODE ANALYSIS REQUEST**
@@ -123,12 +169,17 @@ Return JSON in this EXACT format:
         response = MODEL.generate_content(prompt)
         raw_text = response.text.strip()
         
-        # Clean JSON response
         cleaned = re.sub(r'(?i)^\s*(```json|```)', '', raw_text)
         cleaned = re.sub(r'[\x00-\x1F]', '', cleaned)
+        repaired = (
+            cleaned.replace("'", '"')
+            .replace("True", "true")
+            .replace("False", "false")
+            .replace("None", "null")
+            .replace(",\n}", "\n}")
+        )
         
-        return json.loads(cleaned)
-        
+        return json.loads(repaired)
     except json.JSONDecodeError:
         return {"error": "Failed to parse AI response"}
     except Exception as e:
@@ -138,77 +189,119 @@ Return JSON in this EXACT format:
 st.title("🛠️ AI-Powered Code Debugger")
 
 # Input method selection
-input_method = st.radio("Input Method:", 
-                       ["📷 Image", "📁 File", "📝 Paste"],
-                       horizontal=True)
+input_method = st.radio(
+    "SELECT INPUT METHOD:",
+    ["📷 Upload Image", "📁 Upload File", "📝 Paste Code"],
+    horizontal=True
+)
 
 code_text = ""
 language = "python"
+error_message = ""
 
-# Image processing
-if input_method == "📷 Image":
-    img_file = st.file_uploader("Upload Code Image", type=["png", "jpg", "jpeg"])
+# Image Upload Handling
+if input_method == "📷 Upload Image":
+    img_file = st.file_uploader(
+        "Upload Code Screenshot",
+        type=ALLOWED_IMAGE_TYPES,
+        help="Max 5MB, PNG/JPG/JPEG only"
+    )
+    
     if img_file:
-        with st.spinner("Extracting code (max 15 seconds)..."):
-            code_text = extract_code_from_image(img_file)
-        
-        if "Error" in code_text:
-            st.error(code_text)
-            st.session_state.analysis_results = {}
+        is_valid, validation_msg = validate_image(img_file)
+        if not is_valid:
+            error_message = f"❌ Invalid image: {validation_msg}"
         else:
-            st.code(code_text, language="text")
+            with st.spinner("Extracting code (15s max)..."):
+                code_text = extract_code_from_image(img_file)
+                
+            if "Error" in code_text:
+                error_message = code_text
+            else:
+                st.success("✅ Code extracted successfully!")
+                st.code(code_text, language="text")
 
-# File upload
-elif input_method == "📁 File":
-    code_file = st.file_uploader("Upload Code File", type=["py", "java", "js"])
+# File Upload Handling
+elif input_method == "📁 Upload File":
+    code_file = st.file_uploader(
+        "Upload Code File",
+        type=ALLOWED_CODE_EXTENSIONS,
+        help=f"Supported formats: {', '.join(ALLOWED_CODE_EXTENSIONS)}"
+    )
+    
     if code_file:
-        code_text = code_file.read().decode("utf-8")
-        ext = code_file.name.split(".")[-1]
-        language = {"py": "python", "java": "java", "js": "javascript"}.get(ext, "text")
-        st.code(code_text, language=language)
+        is_valid, content, ext = validate_code_file(code_file)
+        if not is_valid:
+            error_message = f"❌ Invalid file: {content}"
+        else:
+            code_text = content
+            language = {
+                "py": "python", "java": "java", "js": "javascript",
+                "cpp": "cpp", "html": "html", "css": "css", "php": "php"
+            }.get(ext, "text")
+            st.success(f"✅ Valid {ext.upper()} file uploaded!")
+            st.code(code_text, language=language)
 
-# Code paste
+# Code Paste Handling
 else:
-    code_text = st.text_area("Paste Code Here:", height=300)
+    code_text = st.text_area(
+        "Paste Code Here:",
+        height=300,
+        max_chars=MAX_CODE_LENGTH,
+        placeholder="// Paste your code here...",
+        help=f"Max {MAX_CODE_LENGTH} characters"
+    )
     if code_text:
         st.code(code_text, language="text")
 
-# Analysis
-if code_text.strip() and not code_text.startswith("Error"):
-    if st.button("🚀 Analyze Code"):
+# Error Display
+if error_message:
+    st.error(error_message)
+    st.session_state.analysis_results = {}
+
+# Analysis Trigger
+if code_text.strip() and not error_message:
+    if st.button("🚀 Analyze Code", use_container_width=True):
         st.session_state.current_code = code_text
-        with st.spinner("Analyzing..."):
+        with st.spinner("Analyzing code (20-30 seconds)..."):
             st.session_state.analysis_results = analyze_code(code_text, language)
 
-# Display results
+# Results Display
 if st.session_state.analysis_results:
     results = st.session_state.analysis_results
     
     if "error" in results:
-        st.error(results["error"])
+        st.error(f"Analysis Error: {results['error']}")
     else:
+        st.subheader("🔍 Analysis Results")
+        
         with st.expander("🐛 Bugs", expanded=True):
             for bug in results.get("bugs", []):
                 st.error(f"- {bug}")
         
-        with st.expander("🛠️ Fixes"):
+        with st.expander("🛠️ Suggested Fixes"):
             for fix in results.get("fixes", []):
                 st.info(f"- {fix}")
         
-        with st.expander("✅ Corrected Code"):
+        with st.expander("✨ Optimized Code"):
             st.code(results.get("corrected_code", ""), language=language)
         
-        with st.expander("📚 Explanation"):
+        with st.expander("📖 Detailed Explanation"):
             for exp in results.get("explanation", []):
                 st.write(f"- {exp}")
 
-# Chat interface
-user_query = st.chat_input("Ask coding questions...")
-if user_query:
+# Chat Interface
+user_query = st.chat_input("Ask questions about the code...")
+if user_query and MODEL:
     try:
         st.session_state.chat_history.append({"role": "user", "content": user_query})
-        response = MODEL.generate_content(user_query)
-        st.session_state.chat_history.append({"role": "assistant", "content": response.text})
-        st.rerun()
+        with st.spinner("Generating response..."):
+            response = MODEL.generate_content(user_query)
+            if response.text:
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": response.text
+                })
+                st.rerun()
     except Exception as e:
         st.error(f"Chat error: {str(e)}")
