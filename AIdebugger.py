@@ -3,6 +3,7 @@ import json
 import os
 import re
 import imghdr
+import time
 import google.generativeai as genai
 from google.cloud import vision
 from google.oauth2 import service_account
@@ -108,16 +109,24 @@ def validate_code_file(file) -> tuple[bool, str, str]:
 
 def extract_code_from_image(image) -> tuple[bool, str]:
     try:
-        client = vision.ImageAnnotatorClient(
-            credentials=credentials,
-            client_options={"api_endpoint": "eu-vision.googleapis.com"}
-        )
+        client = vision.ImageAnnotatorClient(credentials=credentials)
         content = image.read()
-        response = client.text_detection(
-            image=vision.Image(content=content),
-            timeout=15
-        )
         
+        # Retry mechanism with exponential backoff
+        max_retries = 3
+        response = None
+        for attempt in range(max_retries):
+            try:
+                response = client.text_detection(
+                    image=vision.Image(content=content),
+                    timeout=30  # Increased timeout to 30 seconds
+                )
+                break
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(2 ** attempt)  # Exponential backoff
+
         if response.error.message:
             return False, f"API Error: {response.error.message}"
             
@@ -129,7 +138,7 @@ def extract_code_from_image(image) -> tuple[bool, str]:
         return True, cleaned
         
     except TimeoutError:
-        return False, "OCR processing timed out after 15 seconds"
+        return False, "OCR processing timed out after 30 seconds"
     except (GoogleAPICallError, RetryError) as e:
         return False, f"API Error: {str(e)}"
     except Exception as e:
@@ -220,19 +229,12 @@ if input_method == "📷 Upload Image":
         help="Max 5MB, PNG/JPG/JPEG only"
     )
     
-    # Clear state if file is removed
-    if not img_file and st.session_state.processed_file_id and st.session_state.processed_file_id.startswith("image_"):
-        st.session_state.processed_file_id = None
-        st.session_state.current_code = ""
-        st.session_state.analysis_results = {}
-    
     if img_file and not st.session_state.processing:
-        # Modified line: Use name and size instead of file_id
         current_file_id = f"image_{img_file.name}_{img_file.size}"
         
         if st.session_state.processed_file_id != current_file_id:
             st.session_state.processing = True
-            with st.spinner("Extracting code (15s max)..."):
+            with st.spinner("Extracting code (30s max)..."):
                 try:
                     is_valid, validation_msg = validate_image(img_file)
                     
@@ -262,15 +264,7 @@ elif input_method == "📁 Upload File":
         help=f"Supported formats: {', '.join(ALLOWED_CODE_EXTENSIONS)}"
     )
     
-    # Clear state if file is removed
-    if not code_file and st.session_state.processed_file_id and st.session_state.processed_file_id.startswith("file_"):
-        st.session_state.processed_file_id = None
-        st.session_state.current_code = ""
-        st.session_state.analysis_results = {}
-        st.session_state.file_extension = None
-    
     if code_file and not st.session_state.processing:
-        # Modified line: Use name and size instead of file_id
         current_file_id = f"file_{code_file.name}_{code_file.size}"
         
         if st.session_state.processed_file_id != current_file_id:
@@ -309,22 +303,14 @@ else:
         key="pasted_code"
     )
     
-    # Update state on code change
     if new_code != st.session_state.current_code:
         st.session_state.current_code = new_code
-        st.session_state.analysis_results = {}
-    
-    # Clear state if code is deleted
-    if not new_code.strip():
-        st.session_state.current_code = ""
         st.session_state.analysis_results = {}
 
 # Display current code
 if st.session_state.current_code:
     st.subheader("📄 Current Code")
     st.code(st.session_state.current_code, language=language)
-else:
-    st.session_state.analysis_results = {}
 
 # Error messages
 if error_message:
