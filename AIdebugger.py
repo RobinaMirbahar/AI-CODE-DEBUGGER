@@ -227,7 +227,8 @@ if input_method == "📷 Upload Image":
         st.session_state.analysis_results = {}
     
     if img_file and not st.session_state.processing:
-        current_file_id = f"image_{img_file.file_id}"
+        # Modified line: Use name and size instead of file_id
+        current_file_id = f"image_{img_file.name}_{img_file.size}"
         
         if st.session_state.processed_file_id != current_file_id:
             st.session_state.processing = True
@@ -269,7 +270,8 @@ elif input_method == "📁 Upload File":
         st.session_state.file_extension = None
     
     if code_file and not st.session_state.processing:
-        current_file_id = f"file_{code_file.file_id}"
+        # Modified line: Use name and size instead of file_id
+        current_file_id = f"file_{code_file.name}_{code_file.size}"
         
         if st.session_state.processed_file_id != current_file_id:
             st.session_state.processing = True
