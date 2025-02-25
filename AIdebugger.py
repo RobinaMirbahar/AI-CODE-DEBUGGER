@@ -220,6 +220,12 @@ if input_method == "📷 Upload Image":
         help="Max 5MB, PNG/JPG/JPEG only"
     )
     
+    # Clear state if file is removed
+    if not img_file and st.session_state.processed_file_id and st.session_state.processed_file_id.startswith("image_"):
+        st.session_state.processed_file_id = None
+        st.session_state.current_code = ""
+        st.session_state.analysis_results = {}
+    
     if img_file and not st.session_state.processing:
         current_file_id = f"image_{img_file.file_id}"
         
@@ -255,6 +261,13 @@ elif input_method == "📁 Upload File":
         help=f"Supported formats: {', '.join(ALLOWED_CODE_EXTENSIONS)}"
     )
     
+    # Clear state if file is removed
+    if not code_file and st.session_state.processed_file_id and st.session_state.processed_file_id.startswith("file_"):
+        st.session_state.processed_file_id = None
+        st.session_state.current_code = ""
+        st.session_state.analysis_results = {}
+        st.session_state.file_extension = None
+    
     if code_file and not st.session_state.processing:
         current_file_id = f"file_{code_file.file_id}"
         
@@ -288,18 +301,28 @@ else:
         "Paste Code Here:",
         height=300,
         max_chars=MAX_CODE_LENGTH,
+        value=st.session_state.current_code,
         placeholder="// Paste your code here...",
         help=f"Max {MAX_CODE_LENGTH} characters",
         key="pasted_code"
     )
+    
+    # Update state on code change
     if new_code != st.session_state.current_code:
         st.session_state.current_code = new_code
+        st.session_state.analysis_results = {}
+    
+    # Clear state if code is deleted
+    if not new_code.strip():
+        st.session_state.current_code = ""
         st.session_state.analysis_results = {}
 
 # Display current code
 if st.session_state.current_code:
     st.subheader("📄 Current Code")
     st.code(st.session_state.current_code, language=language)
+else:
+    st.session_state.analysis_results = {}
 
 # Error messages
 if error_message:
