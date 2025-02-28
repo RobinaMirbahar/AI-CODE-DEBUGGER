@@ -1,13 +1,12 @@
 import os
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GOOGLE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
 if not GOOGLE_API_KEY:
-    raise ValueError("❌ GOOGLE_API_KEY is not set. Please configure it as a GitHub Secret.")
+    print("❌ GOOGLE_API_KEY is missing. Check if it's set in GitHub Secrets.")
+    raise ValueError("Missing GOOGLE_API_KEY environment variable.")
 
-if not GOOGLE_CREDENTIALS:
-    raise ValueError("❌ GOOGLE_APPLICATION_CREDENTIALS_JSON is missing. Add it as a GitHub Secret.")
+print("✅ GOOGLE_API_KEY loaded successfully!")
 
 
 import streamlit as st
