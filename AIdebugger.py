@@ -2,17 +2,16 @@ import streamlit as st
 import json
 import os
 import re
-import imghdr
 import time
 import google.generativeai as genai
 from google.cloud import vision
 from google.oauth2 import service_account
 from google.api_core.exceptions import GoogleAPICallError, RetryError
-from concurrent.futures import TimeoutError
+from concurrent.futures import TimeoutError as FutureTimeoutError  # Renamed to avoid conflict
 
 # Constants
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
-ALLOWED_IMAGE_TYPES = ["jpeg", "png"]  # imghdr returns 'jpeg' for JPG files
+ALLOWED_IMAGE_TYPES = ["png", "jpg", "jpeg"]
 ALLOWED_CODE_EXTENSIONS = ["py", "java", "js", "cpp", "html", "css", "php"]
 MAX_CODE_LENGTH = 5000
 
@@ -67,6 +66,9 @@ try:
             temperature=0.25
         )
     )
+except ValueError as e:
+    st.error(f"Model configuration error: {str(e)}")
+    st.stop()
 except Exception as e:
     st.error(f"Initialization error: {str(e)}")
     st.stop()
@@ -81,10 +83,10 @@ def validate_image(file) -> tuple[bool, str]:
         if file_size > MAX_IMAGE_SIZE:
             return False, f"File too large ({file_size//1024}KB > 5MB)"
         
-        # Check file type
-        image_type = imghdr.what(file)
-        if image_type not in ALLOWED_IMAGE_TYPES:
-            return False, f"Unsupported format: {image_type or 'unknown'}"
+        # Check file extension
+        file_extension = file.name.split('.')[-1].lower()
+        if file_extension not in ALLOWED_IMAGE_TYPES:
+            return False, f"Unsupported format: {file_extension}"
             
         return True, ""
     except Exception as e:
@@ -97,12 +99,10 @@ def validate_code_file(file) -> tuple[bool, str, str]:
         if ext not in ALLOWED_CODE_EXTENSIONS:
             return False, "", f"Unsupported file type: .{ext}"
         
-        # Read and validate content
         content = file.read().decode('utf-8')
         if len(content) > MAX_CODE_LENGTH:
             return False, "", f"File too large ({len(content)} > {MAX_CODE_LENGTH} chars)"
         
-        # Remove strict code structure validation
         return True, content, ext
     except UnicodeDecodeError:
         return False, "", "Invalid text encoding"
@@ -117,7 +117,6 @@ def extract_code_from_image(image) -> tuple[bool, str]:
         client = vision.ImageAnnotatorClient(credentials=credentials)
         content = image.read()
         
-        # Retry mechanism with exponential backoff
         max_retries = 3
         response = None
         for attempt in range(max_retries):
@@ -139,12 +138,11 @@ def extract_code_from_image(image) -> tuple[bool, str]:
             return False, "No text detected"
             
         raw_text = response.text_annotations[0].description
-        # Improved text cleaning
         cleaned = re.sub(r'\n{3,}', '\n\n', raw_text).strip()
-        cleaned = re.sub(r'(?<!\n)\n(?!\n)', ' ', cleaned)  # Remove single newlines
+        cleaned = re.sub(r'(?<!\n)\n(?!\n)', ' ', cleaned)
         return True, cleaned
         
-    except TimeoutError:
+    except FutureTimeoutError:
         return False, "OCR processing timed out"
     except (GoogleAPICallError, RetryError) as e:
         return False, f"API Error: {str(e)}"
@@ -174,7 +172,6 @@ Return JSON in this EXACT format:
         response = MODEL.generate_content(prompt)
         raw_text = response.text.strip()
         
-        # Improved JSON cleaning
         cleaned = re.sub(r'(?i)^\s*(```json|```)', '', raw_text)
         cleaned = re.sub(r'[\x00-\x1F]', '', cleaned)
         repaired = (
@@ -185,14 +182,19 @@ Return JSON in this EXACT format:
             .replace(",\n}", "\n}")
         )
         
-        return json.loads(repaired)
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            json_match = re.search(r'\{.*\}', repaired, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+            raise
     except json.JSONDecodeError as e:
-        st.error(f"JSON Parse Error: {str(e)}")
-        return {"error": "Failed to parse AI response"}
+        return {"error": f"JSON Parse Error: {str(e)}"}
     except Exception as e:
         return {"error": f"Analysis failed: {str(e)}"}
 
-# ========== SIDEBAR ==========
+# ========== UI COMPONENTS ==========
 with st.sidebar:
     st.title("🧠 AI Assistant")
     st.markdown("---")
@@ -207,7 +209,7 @@ with st.sidebar:
     - **Code:** Max 5000 characters
     """)
 
-# ========== MAIN INTERFACE ==========
+# Main interface
 st.title("🛠️ AI-Powered Code Debugger")
 
 # Input method selection
@@ -218,7 +220,7 @@ input_method = st.radio(
     key="input_method"
 )
 
-# Reset state when input method changes
+# State management
 if st.session_state.current_input_method != input_method:
     st.session_state.processed_file_id = None
     st.session_state.current_input_method = input_method
@@ -230,42 +232,36 @@ if st.session_state.current_input_method != input_method:
 error_message = ""
 language = "text"
 
-# Image Upload Handling
+# Handle image upload
 if input_method == "📷 Upload Image":
     img_file = st.file_uploader(
         "Upload Code Screenshot",
-        type=['png', 'jpg', 'jpeg'],
+        type=ALLOWED_IMAGE_TYPES,
         help="Max 5MB, PNG/JPG/JPEG only"
     )
     
     if img_file and not st.session_state.processing:
         current_file_id = f"image_{img_file.name}_{img_file.size}"
-        
         if st.session_state.processed_file_id != current_file_id:
             st.session_state.processing = True
             with st.spinner("Extracting code (30s max)..."):
                 try:
                     is_valid, validation_msg = validate_image(img_file)
-                    
                     if not is_valid:
                         error_message = f"❌ Invalid image: {validation_msg}"
-                        st.session_state.processed_file_id = None
                         st.session_state.current_code = ""
                     else:
                         success, result = extract_code_from_image(img_file)
-                        
                         if success:
                             st.session_state.processed_file_id = current_file_id
                             st.session_state.current_code = result
                             st.session_state.analysis_results = {}
                         else:
                             error_message = f"❌ Extraction failed: {result}"
-                            st.session_state.processed_file_id = None
-                            st.session_state.current_code = ""
                 finally:
                     st.session_state.processing = False
 
-# File Upload Handling
+# Handle file upload
 elif input_method == "📁 Upload File":
     code_file = st.file_uploader(
         "Upload Code File",
@@ -275,17 +271,13 @@ elif input_method == "📁 Upload File":
     
     if code_file and not st.session_state.processing:
         current_file_id = f"file_{code_file.name}_{code_file.size}"
-        
         if st.session_state.processed_file_id != current_file_id:
             st.session_state.processing = True
             with st.spinner("Validating file..."):
                 try:
                     is_valid, content, ext = validate_code_file(code_file)
-                    
                     if not is_valid:
                         error_message = f"❌ Invalid file: {content}"
-                        st.session_state.processed_file_id = None
-                        st.session_state.file_extension = None
                         st.session_state.current_code = ""
                     else:
                         st.session_state.processed_file_id = current_file_id
@@ -300,7 +292,7 @@ elif input_method == "📁 Upload File":
                 finally:
                     st.session_state.processing = False
 
-# Code Paste Handling
+# Handle code paste
 else:
     new_code = st.text_area(
         "Paste Code Here:",
@@ -313,19 +305,23 @@ else:
     )
     
     if new_code != st.session_state.current_code:
-        st.session_state.current_code = new_code
-        st.session_state.analysis_results = {}
+        if len(new_code) > MAX_CODE_LENGTH:
+            error_message = f"❌ Code too long ({len(new_code)}/{MAX_CODE_LENGTH} chars)"
+            st.session_state.current_code = ""
+        else:
+            st.session_state.current_code = new_code
+            st.session_state.analysis_results = {}
 
 # Display current code
 if st.session_state.current_code:
     st.subheader("📄 Current Code")
     st.code(st.session_state.current_code, language=language)
 
-# Error messages
+# Show errors
 if error_message:
     st.error(error_message)
 
-# Analysis Trigger
+# Analysis trigger
 if st.session_state.current_code.strip() and not error_message:
     if st.button("🚀 Analyze Code", use_container_width=True):
         with st.spinner("Analyzing code (20-30 seconds)..."):
@@ -334,7 +330,7 @@ if st.session_state.current_code.strip() and not error_message:
                 language
             )
 
-# Results Display
+# Display results
 if st.session_state.analysis_results:
     results = st.session_state.analysis_results
     
@@ -358,7 +354,7 @@ if st.session_state.analysis_results:
             for exp in results.get("explanation", []):
                 st.write(f"- {exp}")
 
-# Chat Interface
+# Chat interface
 user_query = st.chat_input("Ask questions about the code...")
 if user_query and MODEL and not st.session_state.processing:
     try:
