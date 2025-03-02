@@ -3,8 +3,9 @@ name: Deploy AI Debugger
 on: [push]
 
 jobs:
-  run:
+  deploy-ai-debugger:
     runs-on: ubuntu-latest
+
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v3
@@ -14,10 +15,18 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 📦 Install Dependencies
-        run: pip install -r requirements.txt
+      - name: 📦 Upgrade Pip & Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: 🔑 Set Environment Variables
+      - name: 🔑 Set Environment Variables & Run AI Debugger
         env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: python AIdebugger.py
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "❌ GEMINI_API_KEY is missing. Check repository secrets."
+            exit 1
+          fi
+          echo "✅ GEMINI_API_KEY loaded successfully"
+          python AIdebugger.py
