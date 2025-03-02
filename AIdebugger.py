@@ -1,13 +1,8 @@
 import os
 import json
-import time
-import re
 import streamlit as st
 import google.generativeai as genai
-from google.cloud import vision
 from google.oauth2 import service_account
-from google.api_core.exceptions import GoogleAPICallError, RetryError
-from concurrent.futures import TimeoutError as FutureTimeoutError
 
 # Load API Key Securely
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -32,19 +27,7 @@ if cred_json := os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON"):
 
 # Initialize Gemini Model
 try:
-    MODEL = genai.GenerativeModel(
-        'gemini-pro',
-        safety_settings={
-            'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
-            'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-            'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-            'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
-        },
-        generation_config=genai.types.GenerationConfig(
-            max_output_tokens=4000,
-            temperature=0.25
-        )
-    )
+    MODEL = genai.GenerativeModel("gemini-1.5-pro-latest")
 except Exception as e:
     st.error(f"Model initialization error: {str(e)}")
     st.stop()
