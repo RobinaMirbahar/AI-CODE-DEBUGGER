@@ -30,10 +30,21 @@ if cred_json := os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON"):
         st.error(f"Credential parsing error: {str(e)}")
         st.stop()
 
+# Check available models
+try:
+    available_models = [model.name for model in genai.list_models()]
+    if "gemini-1.5-pro-latest" in available_models:
+        model_name = "gemini-1.5-pro-latest"
+    else:
+        model_name = available_models[0] if available_models else "gemini-pro"
+except Exception as e:
+    st.error(f"Failed to list available models: {str(e)}")
+    st.stop()
+
 # Initialize Gemini Model
 try:
     MODEL = genai.GenerativeModel(
-        'gemini-pro',
+        model_name,
         safety_settings={
             'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
             'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
