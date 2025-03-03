@@ -1,0 +1,37 @@
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore virtual environment
+venv/
+.env/
+.envrc
+
+# Ignore Streamlit secrets file (Sensitive information)
+.streamlit/secrets.toml
+
+# Ignore logs and temporary files
+logs/
+*.log
+debug.log
+
+# Ignore dependency files
+requirements.txt
+Pipfile.lock
+poetry.lock
+
+# Ignore VS Code settings (if using VS Code)
+.vscode/
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore Git-related files
+.git/
+
