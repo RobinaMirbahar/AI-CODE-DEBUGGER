@@ -1,94 +1,74 @@
 import os
-import json
-import re
-import difflib
-import streamlit as st
 import google.generativeai as genai
+import streamlit as st
+import difflib
+import re
+import json
 from datetime import datetime
+from dotenv import load_dotenv
 
-# Configure API Keys
-if "GEMINI_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-else:
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    if not GEMINI_API_KEY:
-        GEMINI_API_KEY = st.sidebar.text_input(
-            "Enter Gemini API Key",
-            type="password",
-            help="Get from https://aistudio.google.com/app/apikey"
-        )
-    if GEMINI_API_KEY:
-        genai.configure(api_key=GEMINI_API_KEY)
-    else:
-        st.error("🔑 Gemini API Key required in .streamlit/secrets.toml or environment")
-        st.stop()
+# Load environment variables
+load_dotenv()
 
-# Configure Model
-try:
-    available_models = [m.name for m in genai.list_models()]
-    model_name = "gemini-1.5-pro-latest" if "gemini-1.5-pro-latest" in available_models else "gemini-pro"
-    MODEL = genai.GenerativeModel(
-        model_name,
-        safety_settings={
-            'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
-            'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-            'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-            'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
-        },
-        generation_config=genai.types.GenerationConfig(
-            max_output_tokens=4000,
-            temperature=0.25
-        )
-    )
-except Exception as e:
-    st.error(f"Model initialization error: {str(e)}")
+# Configure Gemini API securely
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+if not GEMINI_API_KEY:
+    st.error("❌ GEMINI_API_KEY is missing. Set it as an environment variable.")
     st.stop()
+
+genai.configure(api_key=GEMINI_API_KEY)
 
 @st.cache_data(show_spinner=False)
 def correct_code(code_snippet, language):
     """Analyze and correct code using Gemini AI with enhanced error handling."""
     try:
-        lang = language.lower() if language != "auto-detect" else ""
+        lang = language.lower() if language != "Auto-Detect" else ""
         code_block = f"```{lang}\n{code_snippet}\n```" if lang else f"```\n{code_snippet}\n```"
-        
+
         prompt = f"""
-        You are an expert code correction assistant. Analyze, debug, and improve this code:
+        You are an expert AI code reviewer. Analyze, debug, and improve the following {language} code:
+
         {code_block}
-        Provide markdown-formatted response with these exact sections:
-        ### Corrected Code
-        - Include line numbers in code blocks
-        - Highlight key changes with comments
-        
-        ### Error Explanation
-        - Categorize errors (syntax, logic, performance)
-        - Explain each fix in bullet points
-        
-        ### Optimization Suggestions
-        - Suggest efficiency improvements
-        - Recommend best practices
-        - Propose security enhancements
+
+        Return output with:
+        - **Corrected Code** (highlight key changes)
+        - **Error Explanation** (syntax, logic, security issues)
+        - **Optimization Suggestions** (efficiency, best practices, security)
         """
         
-        response = MODEL.generate_content(prompt)
+        model = genai.GenerativeModel("gemini-1.5-pro-latest")
+        response = model.generate_content(prompt)
+        
+        if not response.text:
+            return "**Error:** AI did not return any response."
+
         return response.text
     
     except Exception as e:
-        return f"**API Error**: {str(e)}"
+        return f"**API Error:** {str(e)}"
 
 def generate_code_from_text(prompt_text, language):
     """Generate code from a text prompt using Gemini AI."""
     try:
         prompt = f"""
-        You are an AI software developer. Generate code based on this description:
+        You are an AI developer. Generate {language} code for the following requirement:
+
         {prompt_text}
-        Provide the output in markdown code blocks with syntax highlighting for {language}.
+
+        Provide the output in markdown code blocks with syntax highlighting.
         """
         
-        response = MODEL.generate_content(prompt)
+        model = genai.GenerativeModel("gemini-1.5-pro-latest")
+        response = model.generate_content(prompt)
+
+        if not response.text:
+            return "**Error:** AI did not generate any response."
+
         return response.text
     
     except Exception as e:
-        return f"**API Error**: {str(e)}"
+        return f"**API Error:** {str(e)}"
 
 def format_code(code_snippet, language): 
     """AI-powered code formatting"""
@@ -103,13 +83,18 @@ def format_code(code_snippet, language):
     3. Consistent naming
     4. PEP8/ESLint equivalent
     """
-    response = MODEL.generate_content(prompt)
+    model = genai.GenerativeModel("gemini-1.5-pro-latest")
+    response = model.generate_content(prompt)
+    
+    if not response.text:
+        return "**Error:** AI did not return formatted code."
+    
     return response.text
 
 def parse_response(response_text):
     """Parse the AI response into structured sections"""
     sections = {'code': '', 'explanation': '', 'improvements': ''}
-    
+
     code_match = re.search(r'```[\w+]*\n(.*?)```', response_text, re.DOTALL)
     if code_match:
         sections['code'] = code_match.group(1)
@@ -124,8 +109,8 @@ def parse_response(response_text):
     
     return sections
 
-# UI Configuration
 st.set_page_config(page_title="AI Code Debugger Pro", page_icon="🤖", layout="wide")
+
 st.markdown("""
     <style>
         .stMarkdown pre {border-radius: 10px; padding: 15px!important;}
@@ -145,27 +130,25 @@ st.write("Advanced code analysis powered by Google Gemini")
 
 col1, col2 = st.columns([3, 1])
 with col1:
-    uploaded_file = st.file_uploader("📤 Upload code file", type=["py","js","java","cpp","cs","go","rs","ts"])
+    uploaded_file = st.file_uploader("📤 Upload code file", type=["py", "js", "java", "cpp", "cs", "go", "rs", "ts"])
     
     if uploaded_file is not None:
         file_contents = uploaded_file.read().decode("utf-8")
-        st.session_state['code'] = file_contents
+        st.session_state['code'] = file_contents  # Store uploaded content
     
-    code = st.text_area("📝 Paste code here:", height=300, value=st.session_state.get('code', ''), 
-                      help="Supports 10+ programming languages")
-    prompt_text = st.text_area("💡 Describe the functionality you want:", height=150, 
-                            help="AI will generate code based on your description")
+    code = st.text_area("📝 Paste code here:", height=300, value=st.session_state.get('code', ''), help="Supports multiple programming languages")
+    prompt_text = st.text_area("💡 Describe the functionality you want:", height=150, help="AI will generate code based on your description")
 
 with col2:
     lang = st.selectbox("🌐 Language:", ["Auto-Detect", "Python", "JavaScript", "Java", "C++", "C#", "Go", "Rust", "TypeScript"])
     analysis_type = st.radio("🔍 Analysis Type:", ["Full Audit", "Quick Fix", "Security Review"])
-    st.info("💡 Tip: Use 'Full Audit' for complete code review")
+    st.info("💡 Tip: Use 'Full Audit' for a complete review")
 
 if st.button("🚀 Analyze Code", use_container_width=True):
     if not code.strip():
         st.error("⚠️ Please input code or upload a file")
     else:
-        with st.spinner("🔬 Deep code analysis in progress..."):
+        with st.spinner("🔬 Analyzing code..."):
             start_time = datetime.now()
             response = correct_code(code, lang.lower() if lang != "Auto-Detect" else "auto-detect")
             process_time = (datetime.now() - start_time).total_seconds()
@@ -198,9 +181,4 @@ if st.button("🛠 Generate Code"):
     st.code(generated_code, language=lang.lower())
 
 st.markdown("---")
-st.markdown("### 📚 Analysis History")
-for item in st.session_state.history[-3:]:
-    with st.expander(f"Analysis {item['timestamp'].strftime('%H:%M:%S')}"):
-        st.code(item['code'][:200] + "...")
-
 st.markdown("🔒 **Security Note:** Code is processed securely through Google's API and not stored.")
