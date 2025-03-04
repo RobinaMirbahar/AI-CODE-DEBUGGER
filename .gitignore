@@ -98,5 +98,11 @@ dist/
 build/
 *.exe
 
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# All TOML files (optional)
+*.toml 
+
 # Secrets
 .streamlit/secrets.toml
