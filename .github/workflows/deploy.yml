@@ -1,17 +1,20 @@
 name: Deploy AI Debugger
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  deploy-ai-debugger:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout Repository
+      - name: 📥 Checkout Code
         uses: actions/checkout@v3
 
-      - name: 🔧 Set Up Python
-        uses: actions/setup-python@v3
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
@@ -20,13 +23,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 🔑 Set Environment Variables & Run AI Debugger
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: 🔍 Validate Secrets
         run: |
           if [ -z "$GEMINI_API_KEY" ]; then
             echo "❌ GEMINI_API_KEY is missing. Check repository secrets."
             exit 1
+          else
+            echo "✅ GEMINI_API_KEY loaded successfully."
           fi
-          echo "✅ GEMINI_API_KEY loaded successfully"
-          python AIdebugger.py
+
+          if [ -z "$GOOGLE_APPLICATION_CREDENTIALS_JSON" ]; then
+            echo "❌ GOOGLE_APPLICATION_CREDENTIALS_JSON is missing. Check repository secrets."
+            exit 1
+          else
+            echo "✅ GOOGLE_APPLICATION_CREDENTIALS_JSON loaded successfully."
+          fi
+
+      - name: 🚀 Run AI Debugger
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+        run: |
+          echo "🔧 Starting AI Debugger..."
+          python AIdebugger.py | tee ai_debugger.log
