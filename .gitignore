@@ -4,16 +4,98 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+*.pyre
+*.pytype/
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
 venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+
+# Credentials
+*.env
+*.env.local
+*.env.*.local
+.env
+.envrc
+secrets/
+credentials.json
+service-account.json
+*.key
+*.pem
+*.cert
+*.cer
 
 # System
 .DS_Store
 Thumbs.db
+*.log
+*.sqlite
+*.sql
+*.dump
 
-# Secrets
-*.env
-*.key
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.tox/
+junit.xml
+
+# Logs
+*.log
+logs/
+
+# Local development
+temp/
+tmp/
+*.tmp
+*.bak
+*.save
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Docker
+docker-compose.yml
+Dockerfile
+docker-compose.*.yml
+
+# Build artifacts
+dist/
+build/
+*.exe
+
+
