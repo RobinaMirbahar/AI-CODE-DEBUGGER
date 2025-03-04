@@ -46,3 +46,15 @@ jobs:
         run: |
           echo "🔧 Starting AI Debugger..."
           python AIdebugger.py | tee ai_debugger.log
+
+                - name: 🔑 Check Secrets
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "❌ GEMINI_API_KEY is missing. Check repository secrets."
+            exit 1
+          else
+            echo "✅ GEMINI_API_KEY is set"
+          fi
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
