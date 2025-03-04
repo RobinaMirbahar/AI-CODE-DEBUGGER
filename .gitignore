@@ -98,6 +98,5 @@ dist/
 build/
 *.exe
 
-# .gitignore
+# Secrets
 .streamlit/secrets.toml
-*.toml
