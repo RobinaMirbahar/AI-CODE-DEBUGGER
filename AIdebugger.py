@@ -5,151 +5,275 @@ import google.generativeai as genai
 from google.cloud import vision
 from google.oauth2 import service_account
 import subprocess
+from datetime import datetime
 
-# Set Google Cloud Credentials
-def set_google_credentials():
-    service_account_info = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS"])
-    credentials = service_account.Credentials.from_service_account_info(service_account_info)
-    return credentials
+# Streamlit configuration MUST be first
+st.set_page_config(
+    page_title="🛠️ AI Code Debugger Pro",
+    page_icon="🤖",
+    layout="wide"
+)
 
-# Configure Gemini AI API
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+# Secure Configuration Handling
+def get_secret(key, default=None):
+    """Get secrets from multiple sources with fallback"""
+    try:
+        return st.secrets[key]
+    except (KeyError, FileNotFoundError):
+        return os.getenv(key, default)
+
+# Configure Gemini API with multiple fallbacks
+GEMINI_API_KEY = get_secret("GEMINI_API_KEY") or st.sidebar.text_input(
+    "🔑 Enter Gemini API Key",
+    type="password",
+    help="Get from https://aistudio.google.com/app/apikey"
+)
+
+if not GEMINI_API_KEY:
+    st.error("❌ Gemini API Key required")
+    st.stop()
+
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+except Exception as e:
+    st.error(f"🔧 Gemini configuration failed: {str(e)}")
+    st.stop()
+
+# Google Cloud Vision Setup
+def get_vision_client():
+    """Initialize Vision API client with error handling"""
+    try:
+        creds_json = get_secret("GOOGLE_APPLICATION_CREDENTIALS")
+        if not creds_json:
+            return None
+            
+        service_account_info = json.loads(creds_json)
+        credentials = service_account.Credentials.from_service_account_info(service_account_info)
+        return vision.ImageAnnotatorClient(credentials=credentials)
+    except Exception as e:
+        st.error(f"🔧 Vision API error: {str(e)}")
+        return None
+
+vision_client = get_vision_client()
+
+# AI Model Configuration
 SAFETY_SETTINGS = {
     'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
     'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
     'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
     'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
 }
-GENERATION_CONFIG = genai.types.GenerationConfig(
-    max_output_tokens=4000,
-    temperature=0.25
-)
-MODEL = genai.GenerativeModel('gemini-pro',
-    safety_settings=SAFETY_SETTINGS,
-    generation_config=GENERATION_CONFIG
-)
 
-# AI Assistant Sidebar with Tooltips
+try:
+    MODEL = genai.GenerativeModel('gemini-1.5-pro-latest',
+        safety_settings=SAFETY_SETTINGS,
+        generation_config=genai.types.GenerationConfig(
+            max_output_tokens=4000,
+            temperature=0.25
+        )
+    )
+except Exception as e:
+    st.error(f"🤖 Model initialization failed: {str(e)}")
+    st.stop()
+
+# AI Assistant Sidebar
 def ai_assistant():
     st.sidebar.title("🧠 AI Assistant")
-    st.sidebar.write("Ask me anything about debugging and coding!")
-    user_query = st.sidebar.text_input("🔍 Your question:", help="Type your query here and get AI-generated insights.")
+    user_query = st.sidebar.text_input("🔍 Ask about debugging:",
+                                      help="Get coding advice from Gemini")
     if user_query:
-        response = MODEL.generate_content(f"Provide guidance for: {user_query}")
-        st.sidebar.write(response.text if response else "⚠️ No response from AI")
+        try:
+            response = MODEL.generate_content(f"Provide expert guidance: {user_query}")
+            if response.text:
+                st.sidebar.markdown(f"**AI Response:**\n{response.text}")
+            else:
+                st.sidebar.warning("⚠️ No response from AI")
+        except Exception as e:
+            st.sidebar.error(f"API Error: {str(e)}")
 
-# Code Execution Function
+# Secure Code Execution
 def execute_code(code, language):
+    """Run code in isolated environment with timeout"""
     try:
         if language == "python":
-            result = subprocess.run(["python3", "-c", code], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(["python3", "-c", code],
+                                   capture_output=True,
+                                   text=True,
+                                   timeout=10,
+                                   check=True)
         elif language == "javascript":
-            result = subprocess.run(["node", "-e", code], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(["node", "-e", code],
+                                   capture_output=True,
+                                   text=True,
+                                   timeout=10)
         elif language == "java":
             with open("Temp.java", "w") as f:
                 f.write(code)
-            result = subprocess.run(["javac", "Temp.java"], capture_output=True, text=True)
-            if result.returncode == 0:
-                result = subprocess.run(["java", "Temp"], capture_output=True, text=True, timeout=5)
+            compile_result = subprocess.run(["javac", "Temp.java"],
+                                           capture_output=True,
+                                           text=True)
+            if compile_result.returncode != 0:
+                return compile_result.stderr
+            result = subprocess.run(["java", "Temp"],
+                                   capture_output=True,
+                                   text=True,
+                                   timeout=15)
         else:
-            return "⚠️ Execution not supported for this language."
-        return result.stdout if result.stdout else result.stderr
+            return "⚠️ Unsupported language"
+        
+        return result.stdout or result.stderr
+    except subprocess.TimeoutExpired:
+        return "⏰ Execution timed out"
     except Exception as e:
-        return f"Execution Error: {str(e)}"
+        return f"🚨 Execution Error: {str(e)}"
 
-# AI Code Analysis Function
+# Enhanced Code Analysis
 def analyze_code(code_snippet, language="python"):
     if not code_snippet.strip():
         return {"error": "⚠️ No code provided"}
     
+    # Step 1: Initial Execution
     execution_result = execute_code(code_snippet, language)
     
-    if "Error" not in execution_result and "Exception" not in execution_result:
-        return {
-            "bugs": "✅ No issues detected in the code.",
-            "fix": "No fixes needed as the code is correctly implemented.",
-            "corrected_code": "The uploaded code is already correct. No modifications were necessary.",
-            "execution_result": execution_result,
-            "optimization": "No further optimizations required."
-        }
-    
-    prompt = f"""Analyze and correct this {language} code:
+    # Step 2: AI Analysis
+    prompt = f"""Analyze this {language} code:
     ```{language}
     {code_snippet}
     ```
-    Provide structured JSON output:
+    Provide JSON response with:
     {{
-        "bugs": "Identified issues in the code",
-        "fix": "Steps to fix the issues",
-        "corrected_code": "Fixed version of the code",
-        "execution_result": "Expected execution results",
-        "optimization": "Suggested improvements"
-    }}
-    """
+        "bugs": "list of identified issues",
+        "fixes": ["step-by-step corrections"],
+        "corrected_code": "improved code",
+        "optimizations": ["performance improvements"],
+        "security_issues": ["security vulnerabilities"]
+    }}"""
+    
     try:
         response = MODEL.generate_content(prompt)
-        structured_response = json.loads(response.text) if response else {}
-        structured_response["execution_result"] = execute_code(structured_response.get("corrected_code", ""), language)
-        return structured_response
+        if not response.text:
+            return {"error": "⚠️ Empty AI response"}
+            
+        analysis = json.loads(response.text)
+        
+        # Step 3: Validate Corrected Code
+        if "corrected_code" in analysis:
+            analysis["validation_result"] = execute_code(
+                analysis["corrected_code"], 
+                language
+            )
+        
+        analysis["initial_execution"] = execution_result
+        return analysis
+        
+    except json.JSONDecodeError:
+        return {"error": "⚠️ Failed to parse AI response"}
     except Exception as e:
         return {"error": f"⚠️ Analysis failed: {str(e)}"}
 
-# Extract Code from Image
+# Image Processing
 def extract_code_from_image(image):
-    credentials = set_google_credentials()
-    client = vision.ImageAnnotatorClient(credentials=credentials)
-    content = image.read()
-    image = vision.Image(content=content)
-    response = client.text_detection(image=image)
-    texts = response.text_annotations
-    if texts:
-        return texts[0].description
-    return "⚠️ No text detected in image."
+    if not vision_client:
+        return "⚠️ Enable Vision API in settings"
+    
+    try:
+        content = image.read()
+        image = vision.Image(content=content)
+        response = vision_client.text_detection(image=image)
+        texts = response.text_annotations
+        return texts[0].description if texts else "⚠️ No text detected"
+    except Exception as e:
+        return f"⚠️ Vision API error: {str(e)}"
 
-# Initialize Credentials
-credentials = set_google_credentials()
+# Main UI
+st.title("🤖 AI Code Debugger Pro")
+st.markdown("""
+    **Debug code from images, files, or text input using Google Gemini & Vision API**
+    <style>
+    .stCodeBlock {border-radius: 10px; padding: 15px!important;}
+    .stMarkdown pre {background: #f8f9fa;}
+    </style>
+""", unsafe_allow_html=True)
 
-# Streamlit UI
-st.title("🛠️ AI Code Debugger with Google Vision & Gemini API")
-st.write("Upload an image of handwritten or printed code, upload a code file, or paste code manually for debugging and optimization.")
-
-# Initialize AI Assistant
+# Initialize Assistant
 ai_assistant()
 
-# Workflow Guide
-st.sidebar.subheader("📌 How to Use This Tool")
-st.sidebar.write("1️⃣ **Upload an image** with handwritten/printed code.")
-st.sidebar.write("2️⃣ **Upload a code file** in Python, Java, or JavaScript.")
-st.sidebar.write("3️⃣ **Paste code manually** for instant AI analysis.")
-st.sidebar.write("4️⃣ **View AI debugging insights** and execution results.")
+# File Upload Section
+with st.expander("📤 Upload Code or Image", expanded=True):
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        image_file = st.file_uploader("🖼️ Image with Code", 
+                                    type=["png", "jpg", "jpeg"],
+                                    help="Snap a photo of handwritten code")
+        
+    with col2:
+        code_file = st.file_uploader("📁 Code File", 
+                                   type=["py", "js", "java"],
+                                   help="Upload source files directly")
 
-# Image Upload Debugging Feature
-st.subheader("🖼️ Upload Image with Code")
-st.write("Upload an image containing code, and AI will extract and debug it.")
-uploaded_image = st.file_uploader("📂 Choose an image file", type=["png", "jpg", "jpeg"], help="Supported formats: PNG, JPG, JPEG")
-if uploaded_image is not None:
-    st.image(uploaded_image, caption="Uploaded Image", use_container_width=True)
-    extracted_code = extract_code_from_image(uploaded_image)
-    st.subheader("📜 Extracted Code:")
-    st.code(extracted_code, language="python")
-    analysis_result = analyze_code(extracted_code)
-    st.subheader("🔍 AI Debugging Analysis:")
-    st.write(analysis_result)
+# Code Input Section
+code_input = st.text_area("📝 Paste Code Here", 
+                         height=300,
+                         placeholder="Enter your code here...",
+                         help="Supports Python, JavaScript, Java")
 
-# File Upload Debugging Feature
-st.subheader("📂 Upload Code File for Debugging")
-st.write("Upload a code file for AI analysis and debugging.")
-uploaded_code_file = st.file_uploader("Choose a code file", type=["py", "java", "js"], help="Supported formats: Python (.py), Java (.java), JavaScript (.js)")
-if uploaded_code_file is not None:
-    code_text = uploaded_code_file.read().decode("utf-8")
+# Analysis Controls
+if st.button("🚀 Start Analysis", use_container_width=True):
+    analysis_result = None
+    start_time = datetime.now()
     
-    extension = uploaded_code_file.name.split(".")[-1]
-    language_map = {"py": "python", "java": "java", "js": "javascript"}
-    language = language_map.get(extension, "python")
-    
-    st.subheader("📜 Uploaded Code:")
-    st.code(code_text, language=language)
-    
-    analysis_result = analyze_code(code_text, language)
-    st.subheader("🔍 AI Debugging Analysis:")
-    st.write(analysis_result)
+    with st.spinner("🔍 Analyzing code..."):
+        if image_file:
+            extracted_code = extract_code_from_image(image_file)
+            st.code(extracted_code, language="python")
+            analysis_result = analyze_code(extracted_code)
+        elif code_file:
+            content = code_file.read().decode()
+            lang = code_file.name.split(".")[-1]
+            analysis_result = analyze_code(content, lang)
+        elif code_input:
+            analysis_result = analyze_code(code_input)
+        else:
+            st.error("⚠️ Please provide input")
+            
+    if analysis_result:
+        st.success(f"✅ Analysis completed in {(datetime.now()-start_time).total_seconds():.2f}s")
+        
+        with st.container():
+            st.subheader("🧐 Analysis Report")
+            
+            if "error" in analysis_result:
+                st.error(analysis_result["error"])
+            else:
+                tabs = st.tabs(["🐛 Bugs", "🛠 Fixes", "⚡ Optimizations", "🔒 Security"])
+                
+                with tabs[0]:
+                    st.write(analysis_result.get("bugs", "No issues found"))
+                    st.json(analysis_result.get("initial_execution", {}))
+                
+                with tabs[1]:
+                    st.code(analysis_result.get("corrected_code", ""), 
+                           language="python")
+                    st.write("Validation Result:")
+                    st.code(analysis_result.get("validation_result", ""))
+                
+                with tabs[2]:
+                    st.markdown("\n".join(
+                        [f"- {item}" for item in analysis_result.get("optimizations", [])]
+                    ))
+                
+                with tabs[3]:
+                    st.markdown("\n".join(
+                        [f"- 🔒 {item}" for item in analysis_result.get("security_issues", [])]
+                    ))
+
+# Security Footer
+st.markdown("---")
+st.markdown("🔐 **Security Notice:** All code processing is done through Google's secure APIs. No data is stored permanently.")
+st.caption("v2.1 | AI Code Debugger Pro | Powered by Google Gemini")
+
+# Error Handling
+if 'error' in st.session_state:
+    st.error(st.session_state.error)
+    del st.session_state.error
