@@ -1,97 +1,21 @@
 import streamlit as st
-import json
-import os
-import re
 import google.generativeai as genai
+import json
+import re
+import time
+import os
+from PIL import Image
+import io
 from google.cloud import vision
 from google.oauth2 import service_account
-import subprocess
-from datetime import datetime
 
-# Streamlit configuration (MUST be first)
-st.set_page_config(
-    page_title="🛠️ AI Code Debugger Pro",
-    page_icon="🤖",
-    layout="wide"
-)
-
-# Configuration Management
-def get_secret(key, default=None):
-    """Secure secret retrieval from multiple sources"""
-    try:
-        return st.secrets[key]
-    except (KeyError, FileNotFoundError):
-        return os.getenv(key, default)
-
-# Gemini AI Configuration
-GEMINI_API_KEY = get_secret("GEMINI_API_KEY") or st.sidebar.text_input(
-    "🔑 Enter Gemini API Key", 
-    type="password",
-    help="Get from https://aistudio.google.com/app/apikey"
-)
-
-if not GEMINI_API_KEY:
-    st.error("❌ Gemini API Key required")
-    st.stop()
-
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-except Exception as e:
-    st.error(f"🔧 Gemini setup failed: {str(e)}")
-    st.stop()
-
-# Vision API Configuration
-def configure_vision():
-    """Interactive Vision API setup with validation"""
-    vision_enabled = False
-    with st.sidebar.expander("🔧 Vision API Settings", expanded=False):
-        if creds := get_secret("GOOGLE_APPLICATION_CREDENTIALS"):
-            try:
-                service_account_info = json.loads(creds)
-                credentials = service_account.Credentials.from_service_account_info(service_account_info)
-                vision_client = vision.ImageAnnotatorClient(credentials=credentials)
-                vision_enabled = True
-                st.success("✅ Vision API Active")
-            except Exception as e:
-                st.error(f"⚠️ Invalid credentials: {str(e)}")
-        
-        uploaded_creds = st.file_uploader(
-            "Upload Service Account JSON",
-            type=["json"],
-            help="Required for image processing"
-        )
-        
-        if uploaded_creds:
-            try:
-                credentials = json.load(uploaded_creds)
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = json.dumps(credentials)
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Invalid file: {str(e)}")
-        
-        st.markdown("""
-        **Enable Vision API:**
-        1. [Create Google Cloud Project](https://console.cloud.google.com/)
-        2. Enable **Cloud Vision API**
-        3. Create Service Account with **Vision API User** role
-        4. Download JSON credentials
-        """)
-    
-    return vision_enabled
-
-# Initialize Vision API
-vision_enabled = configure_vision()
-vision_client = None
-if vision_enabled:
-    try:
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(get_secret("GOOGLE_APPLICATION_CREDENTIALS"))
-        )
-        vision_client = vision.ImageAnnotatorClient(credentials=credentials)
-    except Exception as e:
-        st.error(f"⚠️ Vision API Error: {str(e)}")
-
-# Gemini Model Configuration
+# ======================
+# Configuration
+# ======================
+MAX_RETRIES = 3
+RETRY_DELAY = 1.5  # seconds
+MAX_CODE_LENGTH = 15000
+SUPPORTED_LANGUAGES = ["python", "javascript", "java"]
 SAFETY_SETTINGS = {
     'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
     'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
@@ -99,216 +23,279 @@ SAFETY_SETTINGS = {
     'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE'
 }
 
-try:
-    MODEL = genai.GenerativeModel('gemini-1.5-pro-latest',
-        safety_settings=SAFETY_SETTINGS,
-        generation_config=genai.types.GenerationConfig(
-            max_output_tokens=4000,
-            temperature=0.25
-        )
-    )
-except Exception as e:
-    st.error(f"🤖 Model initialization failed: {str(e)}")
-    st.stop()
+ANALYSIS_PROMPT = """Analyze this {language} code and provide detailed feedback:
+1. Identify all syntax errors with line numbers
+2. Find logical errors with explanations
+3. Suggest performance optimizations
+4. Highlight security vulnerabilities
 
-# Code Execution
-def execute_code(code, language):
-    """Safe code execution with isolation"""
-    try:
-        if language == "python":
-            result = subprocess.run(["python3", "-c", code], 
-                                  capture_output=True, text=True, timeout=10)
-        elif language == "javascript":
-            result = subprocess.run(["node", "-e", code], 
-                                  capture_output=True, text=True, timeout=10)
-        elif language == "java":
-            with open("Temp.java", "w") as f:
-                f.write(code)
-            compile_result = subprocess.run(["javac", "Temp.java"], 
-                                          capture_output=True, text=True)
-            if compile_result.returncode != 0:
-                return compile_result.stderr
-            result = subprocess.run(["java", "Temp"], 
-                                  capture_output=True, text=True, timeout=15)
-        else:
-            return "⚠️ Unsupported language"
-        
-        return result.stdout or result.stderr
-    except subprocess.TimeoutExpired:
-        return "⏰ Execution timed out"
-    except Exception as e:
-        return f"🚨 Execution Error: {str(e)}"
-
-# Enhanced JSON Parsing
-def parse_ai_response(response_text):
-    """Multi-stage JSON extraction"""
-    try:
-        # Attempt direct JSON parse
-        return json.loads(response_text)
-    except json.JSONDecodeError:
-        try:
-            # Extract from markdown code block
-            json_match = re.search(r'```json\n(.*?)```', response_text, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group(1).strip())
-            
-            # Find JSON in text
-            json_str = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_str:
-                return json.loads(json_str.group())
-            
-            return {"error": "No valid JSON found"}
-        except Exception as e:
-            return {"error": f"Parse failed: {str(e)}", "raw": response_text}
-
-# Core Analysis Function
-def analyze_code(code_snippet, language="python"):
-    if not code_snippet.strip():
-        return {"error": "⚠️ No code provided"}
-    
-    prompt = f"""Analyze this {language} code and return JSON response:
-    ```{language}
-    {code_snippet}
-    ```
-    
-    Required JSON format:
-    {{
-        "bugs": ["list", "of", "issues"],
-        "fixes": ["step-by-step", "corrections"],
-        "corrected_code": "full_corrected_code_here",
-        "optimizations": ["performance_improvements"],
-        "security_issues": ["potential_vulnerabilities"]
+Return structured JSON response:
+{{
+    "metadata": {{
+        "analysis_time": "...",
+        "code_length": number,
+        "language": "..."
+    }},
+    "issues": {{
+        "syntax_errors": ["error details"],
+        "logical_errors": ["error details"],
+        "security_issues": ["vulnerability details"]
+    }},
+    "improvements": {{
+        "corrected_code": "full_code",
+        "optimizations": ["optimization details"],
+        "security_fixes": ["fix details"]
     }}
-    
-    Return ONLY valid JSON without commentary."""
-    
-    try:
-        response = MODEL.generate_content(prompt)
-        if not response.text:
-            return {"error": "⚠️ Empty AI response"}
-        
-        parsed = parse_ai_response(response.text)
-        parsed["raw_response"] = response.text  # For debugging
-        
-        # Validate corrected code
-        if "corrected_code" in parsed:
-            parsed["validation"] = execute_code(
-                parsed["corrected_code"], 
-                language
-            )
-        
-        return parsed
-    except Exception as e:
-        return {"error": f"⚠️ Analysis failed: {str(e)}"}
+}}
 
-# Image Processing
-def extract_code_from_image(image):
-    if not vision_client:
-        return "⚠️ Enable Vision API in settings"
-    
+Code:
+```{language}
+{code}
+```"""
+
+# ======================
+# Initialization
+# ======================
+def initialize_apis():
+    """Initialize API clients with credentials"""
     try:
-        content = image.read()
-        image = vision.Image(content=content)
-        response = vision_client.text_detection(image=image)
+        # Configure Gemini
+        genai.configure(api_key=st.secrets["GEMINI"]["api_key"])
+        
+        # Configure Vision API
+        credentials = service_account.Credentials.from_service_account_info(
+            st.secrets["GCP"]
+        )
+        vision_client = vision.ImageAnnotatorClient(credentials=credentials)
+        
+        return vision_client
+        
+    except Exception as e:
+        st.error(f"API Initialization Failed: {str(e)}")
+        st.stop()
+
+vision_client = initialize_apis()
+
+# ======================
+# Image Processing
+# ======================
+def preprocess_image(image_bytes):
+    """Enhance image quality for OCR"""
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        img = img.convert('L')  # Grayscale
+        img = img.point(lambda x: 0 if x < 150 else 255)  # Thresholding
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        return buffer.getvalue()
+    except Exception as e:
+        st.error(f"Image Processing Error: {str(e)}")
+        return None
+
+def extract_code_from_image(image_file):
+    """Extract code from image with validation"""
+    try:
+        processed_image = preprocess_image(image_file.read())
+        if not processed_image:
+            return None, "Image processing failed"
+            
+        image = vision.Image(content=processed_image)
+        response = vision_client.text_detection(
+            image=image,
+            image_context={"language_hints": ["en"]}
+        )
         
         if response.error.message:
-            return f"⚠️ Vision API Error: {response.error.message}"
+            return None, f"Vision API Error: {response.error.message}"
             
-        return response.text_annotations[0].description if response.text_annotations else "⚠️ No text found"
+        if not response.text_annotations:
+            return None, "No text detected in image"
+            
+        raw_text = response.text_annotations[0].description
+        
+        # Validate code structure
+        if not re.search(r'(def|function|class|{|}|;)', raw_text):
+            return None, "No recognizable code structure"
+            
+        return raw_text, ""
     except Exception as e:
-        return f"⚠️ Image Error: {str(e)}"
+        return None, f"OCR Failed: {str(e)}"
 
-# UI Components
-st.title("🤖 AI Code Debugger Pro")
-st.markdown("""
-    <style>
-    .stCodeBlock {border-radius: 10px; padding: 15px!important;}
-    .stMarkdown pre {background: #f8f9fa;}
-    .reportview-container {background: #ffffff;}
-    </style>
-""", unsafe_allow_html=True)
+# ======================
+# Code Analysis
+# ======================
+def validate_code(code):
+    """Validate code before analysis"""
+    if not code or len(code.strip()) < 20:
+        return False, "Code too short (minimum 20 characters)"
+    if len(code) > MAX_CODE_LENGTH:
+        return False, f"Code exceeds {MAX_CODE_LENGTH} character limit"
+    return True, ""
 
-# Input Section
-input_method = st.radio("Choose Input Method:", 
-                       ["📝 Paste Code", "📁 Upload File", "🖼️ Image Capture"],
-                       horizontal=True)
-
-code_input = ""
-language = "python"
-
-if input_method == "📝 Paste Code":
-    code_input = st.text_area("Code Input", height=300, placeholder="Paste your code here...")
-    language = st.selectbox("Language", ["python", "javascript", "java"])
-
-elif input_method == "📁 Upload File":
-    uploaded_file = st.file_uploader("Choose File", type=["py", "js", "java"])
-    if uploaded_file:
-        code_input = uploaded_file.read().decode()
-        ext = uploaded_file.name.split(".")[-1]
-        language = {"py": "python", "js": "javascript", "java": "java"}.get(ext, "python")
-
-elif input_method == "🖼️ Image Capture":
-    if not vision_enabled:
-        st.warning("Enable Vision API in settings to use this feature")
-    else:
-        image_file = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
-        if image_file:
-            code_input = extract_code_from_image(image_file)
-            st.code(code_input, language="python")
-
-# Analysis Execution
-if st.button("🚀 Start Analysis", type="primary"):
-    if not code_input.strip():
-        st.error("⚠️ Please provide code input")
-    else:
-        with st.spinner("🔍 Analyzing code..."):
-            start_time = datetime.now()
-            result = analyze_code(code_input, language)
-            duration = (datetime.now() - start_time).total_seconds()
+def analyze_code(code, language):
+    """Analyze code with retry logic"""
+    for attempt in range(MAX_RETRIES):
+        try:
+            model = genai.GenerativeModel('gemini-pro', safety_settings=SAFETY_SETTINGS)
+            response = model.generate_content(
+                ANALYSIS_PROMPT.format(language=language, code=code),
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.1,
+                    max_output_tokens=4000
+                )
+            )
             
-            st.subheader(f"📊 Analysis Results ({duration:.2f}s)")
-            
-            if "error" in result:
-                st.error(result["error"])
-                if "raw_response" in result:
-                    with st.expander("View Raw Response"):
-                        st.code(result["raw_response"])
+            if not response.text:
+                raise ValueError("Empty API response")
+                
+            return parse_response(response.text)
+        except Exception as e:
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(RETRY_DELAY * (attempt + 1))
+            continue
+    return {"error": "Analysis failed after multiple attempts"}
+
+def parse_response(response_text):
+    """Parse and validate API response"""
+    try:
+        # Clean response
+        cleaned = re.sub(r'[\x00-\x1F]', '', response_text)
+        
+        # Try direct JSON parse
+        try:
+            result = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # Extract from code block
+            json_match = re.search(r'```json\n(.*?)```', cleaned, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group(1))
             else:
-                tabs = st.tabs(["🐛 Bugs", "🛠 Fixes", "⚡ Optimizations", "🔒 Security"])
+                # Find JSON in text
+                json_str = re.search(r'\{.*\}', cleaned, re.DOTALL)
+                result = json.loads(json_str.group()) if json_str else None
                 
-                with tabs[0]:
-                    st.write("### Identified Issues")
-                    st.json(result.get("bugs", []))
-                
-                with tabs[1]:
-                    st.write("### Corrected Code")
-                    st.code(result.get("corrected_code", ""), language=language)
-                    st.write("### Validation Results")
-                    st.code(result.get("validation", ""))
-                
-                with tabs[2]:
-                    st.write("### Optimization Suggestions")
-                    st.markdown("\n".join([f"- {item}" for item in result.get("optimizations", [])]))
-                
-                with tabs[3]:
-                    st.write("### Security Issues")
-                    st.markdown("\n".join([f"- 🔒 {item}" for item in result.get("security_issues", [])]))
+        # Validate structure
+        if not result.get("issues") or not result.get("improvements"):
+            raise ValueError("Invalid response structure")
+            
+        return result
+    except Exception as e:
+        return {"error": f"Response Parsing Failed: {str(e)}"}
 
-# Debugging Section
-with st.expander("🔧 Debugging Tools"):
-    if st.button("Show Session State"):
-        st.write(st.session_state)
+# ======================
+# Streamlit UI
+# ======================
+def main():
+    st.set_page_config(
+        page_title="AI Code Debugger Pro",
+        page_icon="🤖",
+        layout="wide"
+    )
     
-    if st.checkbox("Show Raw AI Responses"):
-        if 'last_raw_response' in st.session_state:
-            st.code(st.session_state.last_raw_response)
+    st.title("🤖 AI Code Debugger Pro")
+    st.markdown("---")
+    
+    # File Upload Section
+    upload_type = st.radio("Input Method:", ["📝 Paste Code", "📁 Upload File", "🖼️ Image"])
+    
+    code = None
+    language = "python"
+    
+    # Handle different input methods
+    if upload_type == "📝 Paste Code":
+        code = st.text_area("Enter Code:", height=300)
+        language = st.selectbox("Select Language:", SUPPORTED_LANGUAGES)
+        
+    elif upload_type == "📁 Upload File":
+        file = st.file_uploader("Upload Code File", type=["py", "js", "java"])
+        if file:
+            code = file.read().decode()
+            ext = file.name.split(".")[-1]
+            language = {"py": "python", "js": "javascript", "java": "java"}.get(ext)
+            
+    elif upload_type == "🖼️ Image":
+        img_file = st.file_uploader("Upload Code Image", type=["png", "jpg", "jpeg"])
+        if img_file:
+            code, error = extract_code_from_image(img_file)
+            if error:
+                st.error(error)
+            else:
+                language = st.selectbox("Select Language:", SUPPORTED_LANGUAGES)
+    
+    # Analysis Section
+    if code:
+        st.markdown("---")
+        st.subheader("🔍 Code Preview")
+        st.code(code, language=language)
+        
+        if st.button("Analyze Code", type="primary"):
+            is_valid, msg = validate_code(code)
+            if not is_valid:
+                st.error(msg)
+                return
+                
+            with st.spinner("🧠 Analyzing Code (this may take 20-30 seconds)..."):
+                start_time = time.time()
+                result = analyze_code(code, language)
+                analysis_time = time.time() - start_time
+                
+                if "error" in result:
+                    st.error(f"Analysis Failed: {result['error']}")
+                else:
+                    display_results(result, language, analysis_time)
 
-# Footer
-st.markdown("---")
-st.markdown("🔐 **Security Notice:** All processing done through Google's API. No data stored.")
-st.caption("v2.2 | AI Code Debugger Pro | Powered by Google Gemini")
+def display_results(result, lang, time_taken):
+    """Display analysis results"""
+    st.markdown("---")
+    st.subheader("📊 Analysis Results")
+    
+    # Metadata
+    with st.expander("📄 Metadata", expanded=False):
+        st.write(f"Analysis Time: {time_taken:.2f}s")
+        st.write(f"Language: {lang.capitalize()}")
+    
+    # Issues Column
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🚨 Identified Issues")
+        
+        with st.expander("Syntax Errors", expanded=True):
+            if result["issues"]["syntax_errors"]:
+                st.write("\n\n".join(f"• {e}" for e in result["issues"]["syntax_errors"]))
+            else:
+                st.success("No syntax errors found!")
+                
+        with st.expander("Logical Errors"):
+            if result["issues"]["logical_errors"]:
+                st.write("\n\n".join(f"• {e}" for e in result["issues"]["logical_errors"]))
+            else:
+                st.info("No logical errors found")
+                
+        with st.expander("Security Issues"):
+            if result["issues"]["security_issues"]:
+                st.write("\n\n".join(f"⚠️ {e}" for e in result["issues"]["security_issues"]))
+            else:
+                st.success("No security issues found!")
+    
+    # Improvements Column
+    with col2:
+        st.subheader("✨ Improvements")
+        
+        with st.expander("Corrected Code", expanded=True):
+            st.code(result["improvements"]["corrected_code"], language=lang)
+            
+        with st.expander("Optimizations"):
+            if result["improvements"]["optimizations"]:
+                st.write("\n\n".join(f"• {o}" for e in result["improvements"]["optimizations"]))
+            else:
+                st.info("No optimizations suggested")
+                
+        with st.expander("Security Fixes"):
+            if result["improvements"]["security_fixes"]:
+                st.write("\n\n".join(f"🔒 {f}" for e in result["improvements"]["security_fixes"]))
+            else:
+                st.info("No security fixes needed")
 
-# Error Handling
-if 'error' in st.session_state:
-    st.error(st.session_state.error)
-    del st.session_state.error
+if __name__ == "__main__":
+    main()
