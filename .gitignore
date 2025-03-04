@@ -97,3 +97,7 @@ docker-compose.*.yml
 dist/
 build/
 *.exe
+
+# .gitignore
+.streamlit/secrets.toml
+*.toml
