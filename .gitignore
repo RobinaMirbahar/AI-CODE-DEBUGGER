@@ -1,108 +1,19 @@
+# Streamlit
+.streamlit/secrets.toml
+
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.pyre
-*.pytype/
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
-.venv/
 venv/
-env/
-ENV/
-env.bak/
-venv.bak/
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*.sublime-workspace
-*.sublime-project
-
-# Streamlit
-.streamlit/secrets.toml
-.streamlit/config.toml
-
-# Credentials
-*.env
-*.env.local
-*.env.*.local
-.env
-.envrc
-secrets/
-credentials.json
-service-account.json
-*.key
-*.pem
-*.cert
-*.cer
 
 # System
 .DS_Store
 Thumbs.db
-*.log
-*.sqlite
-*.sql
-*.dump
-
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/
-.mypy_cache/
-.tox/
-junit.xml
-
-# Logs
-*.log
-logs/
-
-# Local development
-temp/
-tmp/
-*.tmp
-*.bak
-*.save
-*~
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Docker
-docker-compose.yml
-Dockerfile
-docker-compose.*.yml
-
-# Build artifacts
-dist/
-build/
-*.exe
-
-# Streamlit secrets
-.streamlit/secrets.toml
-
-# All TOML files (optional)
-*.toml 
 
 # Secrets
-.streamlit/secrets.toml
+*.env
+*.key
