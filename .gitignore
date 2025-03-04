@@ -1,5 +1,6 @@
-# Streamlit
+# .gitignore
 .streamlit/secrets.toml
+*.toml
 
 # Python
 __pycache__/
