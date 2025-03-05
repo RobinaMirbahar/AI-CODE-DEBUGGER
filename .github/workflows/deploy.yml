@@ -10,32 +10,25 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        
-    - name: Lint with Black
-      run: |
-        black --check AIdebugger.py
-        
-    - name: Run Basic Tests
-      run: |
-        python -c "import streamlit as st; print(st.__version__)"
-              - name: 🔧 Set up Python
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
-          architecture: 'x64'
+          python-version: "3.10"
+          architecture: "x64"
 
-        - name: 📦 Install Dependencies
-        run: pip install --no-cache-dir -r requirements.txt
+      - name: 📦 Upgrade Pip & Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
 
+      - name: 🛠 Install Black (Code Formatter)
+        run: pip install black
 
+      - name: 🔍 Run Black Check
+        run: black --check AIdebugger.py
+
+      - name: ✅ Run Basic Tests
+        run: python -c "import streamlit as st; print(st.__version__)"
