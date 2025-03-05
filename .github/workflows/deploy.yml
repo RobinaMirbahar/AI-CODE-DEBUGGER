@@ -29,3 +29,9 @@ jobs:
     - name: Run Basic Tests
       run: |
         python -c "import streamlit as st; print(st.__version__)"
+              - name: 🔧 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          architecture: 'x64'
+
