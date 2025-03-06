@@ -59,23 +59,25 @@ Code:
 def initialize_apis():
     """Initialize API clients with credentials"""
     try:
+        # Verify secrets existence
+        required_secrets = ['GEMINI', 'GCP']
+        missing = [key for key in required_secrets if key not in st.secrets]
+        if missing:
+            raise ValueError(f"Missing secrets: {', '.join(missing)}")
+
         # Configure Gemini
-        genai.configure(api_key=st.secrets["GEMINI"]["api_key"])
+        genai.configure(api_key=st.secrets.GEMINI.api_key)
         
         # Configure Vision API
         credentials = service_account.Credentials.from_service_account_info(
-            st.secrets["GCP"]
+            st.secrets.GCP
         )
-        vision_client = vision.ImageAnnotatorClient(credentials=credentials)
-        
-        return vision_client
+        return vision.ImageAnnotatorClient(credentials=credentials)
         
     except Exception as e:
         st.error(f"API Initialization Failed: {str(e)}")
+        st.error("Please configure your credentials in secrets management")
         st.stop()
-
-vision_client = initialize_apis()
-
 # ======================
 # Image Processing
 # ======================
