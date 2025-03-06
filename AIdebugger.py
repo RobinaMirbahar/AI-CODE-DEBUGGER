@@ -32,6 +32,17 @@ Return strict JSON format:
   "warnings": [string]
 }}"""
 
+VERIFICATION_PROMPT = """Verify user's debugging request:
+User Input: {user_input}
+Code Context: {code_context}
+
+Respond with JSON:
+{{
+  "needs_verification": bool,
+  "verification_questions": [string],
+  "risk_level": "low/medium/high"
+}}"""
+
 # ======================
 # Gemini Initialization
 # ======================
@@ -45,15 +56,51 @@ def initialize_debugger():
             api_key=st.secrets["GEMINI_API_KEY"],
             transport='rest',
             client_options={
-                'api_endpoint': 'https://generativelanguage.googleapis.com/v1beta'
+                'api_endpoint': 'https://generativelanguage.googleapis.com/v1'
             }
         )
-        return genai.GenerativeModel('gemini-1.0-pro')
+        return genai.GenerativeModel('gemini-1.5-pro-latest')
     except Exception as e:
         st.error(f"🔧 Debugger Initialization Failed: {str(e)}")
         st.stop()
 
 model = initialize_debugger()
+
+# ======================
+# AI Verification Agent
+# ======================
+class VerificationAgent:
+    def __init__(self):
+        self.verification_stage = 0
+        self.questions = []
+        self.answers = []
+        self.code_context = ""
+
+    def verify_request(self, user_input, code_snippet):
+        """Verify debugging request with AI agent"""
+        self.code_context = code_snippet[:500]  # Keep context short
+        
+        response = model.generate_content(
+            VERIFICATION_PROMPT.format(
+                user_input=user_input,
+                code_context=self.code_context
+            ),
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=1000,
+                response_mime_type="application/json"
+            )
+        )
+        
+        verification_data = json.loads(response.text)
+        return verification_data
+
+    def handle_verification(self, verification_data):
+        """Manage verification conversation flow"""
+        if verification_data["needs_verification"]:
+            self.questions = verification_data["verification_questions"]
+            return self.questions
+        return None
 
 # ======================
 # Core Debugging Logic
@@ -70,8 +117,10 @@ def debug_code(code: str, language: str) -> dict:
             )
         )
         return parse_debug_response(response.text)
+    except genai.types.generation_types.StopCandidateException as e:
+        return {"error": f"Content safety blocked: {str(e)}"}
     except Exception as e:
-        return {"error": f"Debugging failed: {str(e)}"}
+        return {"error": f"API Error: {str(e)}"}
 
 def parse_debug_response(response: str) -> dict:
     """Process and validate debug output"""
@@ -82,7 +131,6 @@ def parse_debug_response(response: str) -> dict:
             
         debug_data = json.loads(json_str.group(1))
         
-        # Validate response structure
         required_keys = {
             "metadata": ["analysis_time", "complexity"],
             "errors": ["line", "type", "description", "fix"],
@@ -103,7 +151,13 @@ def parse_debug_response(response: str) -> dict:
 # ======================
 def main():
     st.set_page_config(page_title="AI Code Debugger", layout="wide")
-    st.title("🤖 Google Gemini Code Debugger")
+    st.title("🤖 Secure Code Debugger Pro")
+    
+    agent = VerificationAgent()
+    
+    if 'verified' not in st.session_state:
+        st.session_state.verified = False
+        st.session_state.verification_data = None
     
     code = st.text_area("Input Code:", height=300)
     language = st.selectbox("Language:", ["python", "javascript", "java", "c++"])
@@ -113,27 +167,54 @@ def main():
             st.warning("Please enter code to debug")
             return
             
-        with st.spinner("🔍 Analyzing code..."):
-            start = time.time()
-            result = debug_code(code, language.lower())
-            elapsed = time.time() - start
+        # Initial verification
+        if not st.session_state.verified:
+            verification = agent.verify_request("User requested code debugging", code)
+            st.session_state.verification_data = verification
             
-            if "error" in result:
-                st.error(f"🚨 {result['error']}")
+            if verification["needs_verification"]:
+                st.session_state.questions = verification["verification_questions"]
+                st.session_state.verification_step = 0
+                st.rerun()
+        
+        # Handle verification questions
+        if st.session_state.get("verification_step") is not None:
+            current_step = st.session_state.verification_step
+            if current_step < len(st.session_state.questions):
+                question = st.session_state.questions[current_step]
+                answer = st.text_input(f"Verification Question {current_step+1}: {question}")
+                
+                if answer:
+                    agent.answers.append(answer)
+                    st.session_state.verification_step += 1
+                    st.rerun()
             else:
-                display_results(result, elapsed, language.lower())
+                st.success("Verification complete! Proceeding with debugging...")
+                st.session_state.verified = True
+                del st.session_state.verification_step
+                st.rerun()
+        
+        # Main debugging process
+        if st.session_state.verified:
+            with st.spinner("🔍 Analyzing code..."):
+                start = time.time()
+                result = debug_code(code, language.lower())
+                elapsed = time.time() - start
+                
+                if "error" in result:
+                    st.error(f"🚨 {result['error']}")
+                else:
+                    display_results(result, elapsed, language.lower())
 
 def display_results(data: dict, time_taken: float, language: str):
     """Visualize debugging results"""
     st.subheader("📊 Debug Report")
     
-    # Metadata columns
     col1, col2, col3 = st.columns(3)
     col1.metric("Analysis Time", f"{time_taken:.2f}s")
     col2.metric("Code Complexity", data['metadata']['complexity'].upper())
     col3.metric("Issues Found", len(data['errors']))
     
-    # Errors section
     st.subheader("🚨 Code Issues")
     for error in data['errors']:
         with st.expander(f"Line {error['line']}: {error['type']}", expanded=True):
@@ -144,11 +225,9 @@ def display_results(data: dict, time_taken: float, language: str):
             + Fix: {error['fix']}
             """)
     
-    # Corrected code
     st.subheader("✅ Optimized Code")
     st.code(data['corrected_code'], language=language)
     
-    # Warnings
     if data['warnings']:
         st.subheader("⚠️ Important Notes")
         for warning in data['warnings']:
