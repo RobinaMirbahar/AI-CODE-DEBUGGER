@@ -7,34 +7,41 @@ import time
 # ======================
 # Configuration
 # ======================
-DEBUG_PROMPT = """Act as a senior software engineer. Debug this {language} code:
+DEBUG_PROMPT = """Analyze and debug this {language} code with:
+1. Line-specific error identification
+2. Runtime behavior analysis
+3. Security vulnerability detection
+4. Performance optimization
+5. Corrected implementation
 
-**Required Output Format:**
+Return strict JSON format:
 {{
   "metadata": {{
-    "execution_time": float,
-    "code_complexity": "low/medium/high"
+    "analysis_time": float,
+    "complexity": string
   }},
-  "issues": {{
-    "runtime_errors": [{{"line": int, "message": str, "fix": str}}],
-    "logical_errors": [{{"line": int, "message": str, "fix": str}}],
-    "potential_bugs": [{{"line": int, "message": str, "fix": str}}]
-  }},
-  "corrected_code": str
-}}
+  "errors": [
+    {{
+      "line": int,
+      "type": string,
+      "description": string,
+      "fix": string
+    }}
+  ],
+  "corrected_code": string,
+  "warnings": [string]
+}}"""
 
-**Code to Debug:**
-```{language}
-{code}
-```"""
-
+# ======================
+# Gemini Initialization
+# ======================
 def initialize_debugger():
-    """Configure AI model for debugging"""
+    """Configure Gemini debugger engine"""
     try:
-        genai.configure(api_key=st.secrets.GEMINI_API_KEY)
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         return genai.GenerativeModel('gemini-pro')
     except Exception as e:
-        st.error(f"Debugger Initialization Failed: {str(e)}")
+        st.error(f"🔧 Debugger Initialization Failed: {str(e)}")
         st.stop()
 
 model = initialize_debugger()
@@ -43,7 +50,7 @@ model = initialize_debugger()
 # Core Debugging Logic
 # ======================
 def debug_code(code: str, language: str) -> dict:
-    """Perform AI-powered code debugging"""
+    """Execute AI-powered debugging"""
     try:
         response = model.generate_content(
             DEBUG_PROMPT.format(language=language, code=code),
@@ -58,22 +65,26 @@ def debug_code(code: str, language: str) -> dict:
         return {"error": f"Debugging failed: {str(e)}"}
 
 def parse_debug_response(response: str) -> dict:
-    """Parse and validate debug response"""
+    """Process and validate debug output"""
     try:
-        # Extract JSON from markdown
-        json_str = re.search(r'```json\n(.*?)\n```', response, re.DOTALL).group(1)
-        debug_data = json.loads(json_str)
+        # Handle markdown JSON wrapping
+        json_str = re.search(r'```json\n(.*?)\n```', response, re.DOTALL)
+        if not json_str:
+            raise ValueError("No JSON found in response")
+            
+        debug_data = json.loads(json_str.group(1))
         
-        # Validate structure
-        required = {
-            "metadata": ["execution_time", "code_complexity"],
-            "issues": ["runtime_errors", "logical_errors", "potential_bugs"],
-            "corrected_code": str
+        # Validate response structure
+        required_keys = {
+            "metadata": ["analysis_time", "complexity"],
+            "errors": ["line", "type", "description", "fix"],
+            "corrected_code": str,
+            "warnings": list
         }
         
-        for category, keys in required.items():
+        for category, keys in required_keys.items():
             if not all(key in debug_data.get(category, {}) for key in keys):
-                raise ValueError("Invalid debug response structure")
+                raise ValueError(f"Missing {category} data")
                 
         return debug_data
     except Exception as e:
@@ -83,54 +94,57 @@ def parse_debug_response(response: str) -> dict:
 # Streamlit Interface
 # ======================
 def main():
-    st.set_page_config(page_title="AI Code Debugger", page_icon="🐞", layout="wide")
-    st.title("🐞 AI Code Debugger Pro")
+    st.set_page_config(page_title="AI Code Debugger", layout="wide")
+    st.title("🤖 Google Gemini Code Debugger")
     
-    # Code Input
-    code = st.text_area("Input Code:", height=300, placeholder="Paste your code here...")
-    language = st.selectbox("Select Language:", ["Python", "JavaScript", "Java", "C++"])
+    code = st.text_area("Input Code:", height=300)
+    language = st.selectbox("Language:", ["Python", "JavaScript", "Java", "C++"])
     
     if st.button("Debug Code"):
         if not code.strip():
-            st.warning("Please input some code to debug")
+            st.warning("Please enter code to debug")
             return
             
-        with st.spinner("🔍 Debugging your code..."):
-            start_time = time.time()
+        with st.spinner("🔍 Analyzing code..."):
+            start = time.time()
             result = debug_code(code, language.lower())
-            elapsed = time.time() - start_time
+            elapsed = time.time() - start
             
             if "error" in result:
-                st.error(f"Debugging Error: {result['error']}")
+                st.error(f"🚨 {result['error']}")
             else:
-                display_debug_results(result, elapsed)
+                display_results(result, elapsed)
 
-def display_debug_results(data: dict, time_taken: float):
-    """Display debugging results"""
-    st.subheader("🔧 Debugging Report")
+def display_results(data: dict, time_taken: float):
+    """Visualize debugging results"""
+    st.subheader("📊 Debug Report")
     
-    # Metadata
-    with st.expander("📊 Performance Metrics"):
-        cols = st.columns(3)
-        cols[0].metric("Analysis Time", f"{time_taken:.2f}s")
-        cols[1].metric("Code Complexity", data['metadata']['code_complexity'].upper())
-        cols[2].metric("Execution Estimate", f"{data['metadata']['execution_time']}ms")
+    # Metadata columns
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Analysis Time", f"{time_taken:.2f}s")
+    col2.metric("Code Complexity", data['metadata']['complexity'].upper())
+    col3.metric("Issues Found", len(data['errors']))
     
-    # Issues Panel
-    st.subheader("🚨 Identified Issues")
-    for issue_type in ['runtime_errors', 'logical_errors', 'potential_bugs']:
-        if data['issues'][issue_type]:
-            with st.expander(f"{issue_type.replace('_', ' ').title()} ({len(data['issues'][issue_type])})"):
-                for error in data['issues'][issue_type]:
-                    st.markdown(f"""
-                    **Line {error['line']}**: {error['message']}
-                    ```diff
-                    + Fix: {error['fix']}
-                    """)
+    # Errors section
+    st.subheader("🚨 Code Issues")
+    for error in data['errors']:
+        with st.expander(f"Line {error['line']}: {error['type']}", expanded=True):
+            st.markdown(f"""
+            **Description**: {error['description']}
+            ```diff
+            - Problem: {error['description'].split('.')[0]} 
+            + Fix: {error['fix']}
+            """)
     
-    # Corrected Code
-    st.subheader("✅ Corrected Code")
-    st.code(data['corrected_code'], language=language)
+    # Corrected code
+    st.subheader("✅ Optimized Code")
+    st.code(data['corrected_code'], language=language.lower())
+    
+    # Warnings
+    if data['warnings']:
+        st.subheader("⚠️ Important Notes")
+        for warning in data['warnings']:
+            st.warning(warning)
 
 if __name__ == "__main__":
     main()
