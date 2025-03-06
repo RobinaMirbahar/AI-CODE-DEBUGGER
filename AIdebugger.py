@@ -41,13 +41,18 @@ def initialize_debugger():
         if "GEMINI_API_KEY" not in st.secrets:
             raise ValueError("Missing GEMINI_API_KEY in secrets")
             
-        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        return genai.GenerativeModel('gemini-pro')
+        genai.configure(
+            api_key=st.secrets["GEMINI_API_KEY"],
+            transport='rest',
+            client_options={
+                'api_endpoint': 'https://generativelanguage.googleapis.com/v1beta'
+            }
+        )
+        return genai.GenerativeModel('gemini-1.0-pro')
     except Exception as e:
         st.error(f"🔧 Debugger Initialization Failed: {str(e)}")
         st.stop()
 
-# Initialize model at module level
 model = initialize_debugger()
 
 # ======================
@@ -101,7 +106,7 @@ def main():
     st.title("🤖 Google Gemini Code Debugger")
     
     code = st.text_area("Input Code:", height=300)
-    language = st.selectbox("Language:", ["Python", "JavaScript", "Java", "C++"])
+    language = st.selectbox("Language:", ["python", "javascript", "java", "c++"])
     
     if st.button("Debug Code"):
         if not code.strip():
@@ -116,9 +121,9 @@ def main():
             if "error" in result:
                 st.error(f"🚨 {result['error']}")
             else:
-                display_results(result, elapsed)
+                display_results(result, elapsed, language.lower())
 
-def display_results(data: dict, time_taken: float):
+def display_results(data: dict, time_taken: float, language: str):
     """Visualize debugging results"""
     st.subheader("📊 Debug Report")
     
@@ -141,7 +146,7 @@ def display_results(data: dict, time_taken: float):
     
     # Corrected code
     st.subheader("✅ Optimized Code")
-    st.code(data['corrected_code'], language=language.lower())
+    st.code(data['corrected_code'], language=language)
     
     # Warnings
     if data['warnings']:
