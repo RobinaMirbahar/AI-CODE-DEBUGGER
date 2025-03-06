@@ -161,24 +161,30 @@ def parse_response(response_text):
         # Clean response
         cleaned = re.sub(r'[\x00-\x1F]', '', response_text)
         
-        # Try direct JSON parse
+        # Try different parsing strategies
+        json_str = None
         try:
-            result = json.loads(cleaned)
+            return json.loads(cleaned)
         except json.JSONDecodeError:
-            # Extract from code block
-            json_match = re.search(r'```json\n(.*?)```', cleaned, re.DOTALL)
-            if json_match:
-                result = json.loads(json_match.group(1))
-            else:
-                # Find JSON in text
-                json_str = re.search(r'\{.*\}', cleaned, re.DOTALL)
-                result = json.loads(json_str.group()) if json_str else None
-                
-        # Validate structure
-        if not result.get("issues") or not result.get("improvements"):
-            raise ValueError("Invalid response structure")
-            
-        return result
+            pass
+
+        # Try extracting JSON from markdown code block
+        json_match = re.search(r'```(?:json)?\n(.*?)```', cleaned, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            # Find JSON object in text
+            json_str_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
+            if json_str_match:
+                json_str = json_str_match.group()
+
+        if json_str:
+            result = json.loads(json_str)
+            # Validate response structure
+            if all(key in result for key in ["issues", "improvements"]):
+                return result
+        
+        raise ValueError("Invalid JSON structure")
     except Exception as e:
         return {"error": f"Response Parsing Failed: {str(e)}"}
 
@@ -209,9 +215,13 @@ def main():
     elif upload_type == "📁 Upload File":
         file = st.file_uploader("Upload Code File", type=["py", "js", "java"])
         if file:
-            code = file.read().decode()
-            ext = file.name.split(".")[-1]
-            language = {"py": "python", "js": "javascript", "java": "java"}.get(ext)
+            try:
+                code = file.read().decode()
+                ext = file.name.split(".")[-1]
+                language = {"py": "python", "js": "javascript", "java": "java"}.get(ext)
+            except Exception as e:
+                st.error(f"Error reading file: {str(e)}")
+                return
             
     elif upload_type == "🖼️ Image":
         img_file = st.file_uploader("Upload Code Image", type=["png", "jpg", "jpeg"])
@@ -261,19 +271,19 @@ def display_results(result, lang, time_taken):
         st.subheader("🚨 Identified Issues")
         
         with st.expander("Syntax Errors", expanded=True):
-            if result["issues"]["syntax_errors"]:
+            if result.get("issues", {}).get("syntax_errors"):
                 st.write("\n\n".join(f"• {e}" for e in result["issues"]["syntax_errors"]))
             else:
                 st.success("No syntax errors found!")
                 
         with st.expander("Logical Errors"):
-            if result["issues"]["logical_errors"]:
+            if result.get("issues", {}).get("logical_errors"):
                 st.write("\n\n".join(f"• {e}" for e in result["issues"]["logical_errors"]))
             else:
                 st.info("No logical errors found")
                 
         with st.expander("Security Issues"):
-            if result["issues"]["security_issues"]:
+            if result.get("issues", {}).get("security_issues"):
                 st.write("\n\n".join(f"⚠️ {e}" for e in result["issues"]["security_issues"]))
             else:
                 st.success("No security issues found!")
@@ -283,17 +293,18 @@ def display_results(result, lang, time_taken):
         st.subheader("✨ Improvements")
         
         with st.expander("Corrected Code", expanded=True):
-            st.code(result["improvements"]["corrected_code"], language=lang)
+            st.code(result.get("improvements", {}).get("corrected_code", "No corrected code provided"), 
+                  language=lang)
             
         with st.expander("Optimizations"):
-            if result["improvements"]["optimizations"]:
-                st.write("\n\n".join(f"• {o}" for e in result["improvements"]["optimizations"]))
+            if result.get("improvements", {}).get("optimizations"):
+                st.write("\n\n".join(f"• {o}" for o in result["improvements"]["optimizations"]))
             else:
                 st.info("No optimizations suggested")
                 
         with st.expander("Security Fixes"):
-            if result["improvements"]["security_fixes"]:
-                st.write("\n\n".join(f"🔒 {f}" for e in result["improvements"]["security_fixes"]))
+            if result.get("improvements", {}).get("security_fixes"):
+                st.write("\n\n".join(f"🔒 {f}" for f in result["improvements"]["security_fixes"]))
             else:
                 st.info("No security fixes needed")
 
