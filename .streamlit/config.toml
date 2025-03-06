@@ -1,10 +1,11 @@
+[server]
+headless = true
+port = 8501
+
 [theme]
 base = "dark"
-primaryColor = "#FF4B4B"
-backgroundColor = "#0E1117"
-secondaryBackgroundColor = "#262730"
-textColor = "#FAFAFA"
-font = "monospace"
-
-[server]
-port = 8501
+primaryColor = "#4285F4"  # Google blue
+backgroundColor = "#202124"
+secondaryBackgroundColor = "#303134"
+textColor = "#FFFFFF"
+font = "sans serif"
