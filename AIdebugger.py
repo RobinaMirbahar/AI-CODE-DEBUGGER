@@ -12,9 +12,9 @@ from google.oauth2 import service_account
 # ======================
 # Configuration
 # ======================
-MAX_RETRIES = 3
-RETRY_DELAY = 1.5  # seconds
-MAX_CODE_LENGTH = 15000
+MAX_RETRIES = 5
+RETRY_DELAY = 2.5
+MAX_CODE_LENGTH = 8000
 SUPPORTED_LANGUAGES = ["python", "javascript", "java"]
 SAFETY_SETTINGS = {
     'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
@@ -59,25 +59,30 @@ Code:
 def initialize_apis():
     """Initialize API clients with credentials"""
     try:
-        # Verify secrets existence
-        required_secrets = ['GEMINI', 'GCP']
-        missing = [key for key in required_secrets if key not in st.secrets]
-        if missing:
-            raise ValueError(f"Missing secrets: {', '.join(missing)}")
+        if "GEMINI" not in st.secrets or "GCP" not in st.secrets:
+            raise ValueError("Missing required secrets configuration")
 
-        # Configure Gemini
         genai.configure(api_key=st.secrets.GEMINI.api_key)
-        
-        # Configure Vision API
-        credentials = service_account.Credentials.from_service_account_info(
-            st.secrets.GCP
-        )
+        credentials = service_account.Credentials.from_service_account_info(st.secrets.GCP)
         return vision.ImageAnnotatorClient(credentials=credentials)
         
     except Exception as e:
         st.error(f"API Initialization Failed: {str(e)}")
-        st.error("Please configure your credentials in secrets management")
         st.stop()
+
+vision_client = initialize_apis()
+
+# ======================
+# Validation Functions
+# ======================
+def validate_code(code):
+    """Validate code before analysis"""
+    if not code or len(code.strip()) < 20:
+        return False, "Code too short (minimum 20 characters)"
+    if len(code) > MAX_CODE_LENGTH:
+        return False, f"Code exceeds {MAX_CODE_LENGTH} character limit"
+    return True, ""
+
 # ======================
 # Image Processing
 # ======================
@@ -85,8 +90,7 @@ def preprocess_image(image_bytes):
     """Enhance image quality for OCR"""
     try:
         img = Image.open(io.BytesIO(image_bytes))
-        img = img.convert('L')  # Grayscale
-        img = img.point(lambda x: 0 if x < 150 else 255)  # Thresholding
+        img = img.convert('L').point(lambda x: 0 if x < 150 else 255)
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         return buffer.getvalue()
@@ -102,10 +106,7 @@ def extract_code_from_image(image_file):
             return None, "Image processing failed"
             
         image = vision.Image(content=processed_image)
-        response = vision_client.text_detection(
-            image=image,
-            image_context={"language_hints": ["en"]}
-        )
+        response = vision_client.text_detection(image=image)
         
         if response.error.message:
             return None, f"Vision API Error: {response.error.message}"
@@ -114,8 +115,6 @@ def extract_code_from_image(image_file):
             return None, "No text detected in image"
             
         raw_text = response.text_annotations[0].description
-        
-        # Validate code structure
         if not re.search(r'(def|function|class|{|}|;)', raw_text):
             return None, "No recognizable code structure"
             
@@ -124,22 +123,16 @@ def extract_code_from_image(image_file):
         return None, f"OCR Failed: {str(e)}"
 
 # ======================
-# Code Analysis (Improved)
+# Code Analysis
 # ======================
-MAX_RETRIES = 5  # Increased from 3
-RETRY_DELAY = 2.5  # Increased from 1.5
-MAX_CODE_LENGTH = 8000  # Reduced from 15000
-
 def analyze_code(code, language):
     """Analyze code with enhanced error handling"""
     for attempt in range(MAX_RETRIES):
         try:
             model = genai.GenerativeModel('gemini-pro', safety_settings=SAFETY_SETTINGS)
-            
-            # Split large code into chunks
             code_chunks = [code[i:i+4000] for i in range(0, len(code), 4000)]
-            
             responses = []
+            
             for chunk in code_chunks:
                 response = model.generate_content(
                     ANALYSIS_PROMPT.format(language=language, code=chunk),
@@ -153,14 +146,10 @@ def analyze_code(code, language):
                 
             return parse_response("".join(responses))
             
-        except (genai.types.StopCandidateException, 
-                genai.types.BlockedPromptException) as e:
+        except (genai.types.StopCandidateException, genai.types.BlockedPromptException) as e:
             st.error(f"Content safety violation: {str(e)}")
             return {"error": "Content blocked by safety filters"}
-            
         except Exception as e:
-            error_msg = f"Attempt {attempt+1} failed: {str(e)}"
-            st.warning(error_msg)
             time.sleep(RETRY_DELAY * (attempt + 1))
             
     return {"error": f"Analysis failed after {MAX_RETRIES} attempts"}
@@ -168,82 +157,60 @@ def analyze_code(code, language):
 def parse_response(response_text):
     """Enhanced JSON parsing with validation"""
     try:
-        # Normalize JSON structure
-        normalized = re.sub(
-            r'(?<!\\)\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})', 
-            r'\\\\',
-            response_text
-        )
+        normalized = re.sub(r'(?<!\\)\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})', r'\\\\', response_text)
         
         # Try multiple parsing strategies
-        for strategy in [json.loads, self._parse_json_blocks]:
+        for strategy in [json.loads, _parse_json_blocks]:
             try:
                 result = strategy(normalized)
-                if self._validate_result(result):
+                if _validate_result(result):
                     return result
             except:
                 continue
                 
         return {"error": "Could not parse valid JSON response"}
-        
     except Exception as e:
         return {"error": f"Parsing failed: {str(e)}"}
 
-def _parse_json_blocks(self, text):
+def _parse_json_blocks(text):
     """Extract JSON from markdown code blocks"""
     json_blocks = re.findall(r'```(?:json)?\n(.*?)\n```', text, re.DOTALL)
-    combined = "\n".join(json_blocks)
-    return json.loads(combined)
+    return json.loads("\n".join(json_blocks))
 
-def _validate_result(self, result):
+def _validate_result(result):
     """Validate response structure"""
     required_keys = {
         'issues': ['syntax_errors', 'logical_errors', 'security_issues'],
         'improvements': ['corrected_code', 'optimizations', 'security_fixes']
     }
-    
-    for category, keys in required_keys.items():
-        if category not in result:
-            return False
-        for key in keys:
-            if key not in result[category]:
-                return False
-    return True
+    return all(
+        category in result and all(key in result[category] for key in keys)
+        for category, keys in required_keys.items()
+    )
+
 # ======================
 # Streamlit UI
 # ======================
 def main():
-    st.set_page_config(
-        page_title="AI Code Debugger Pro",
-        page_icon="🤖",
-        layout="wide"
-    )
-    
+    st.set_page_config(page_title="AI Code Debugger Pro", page_icon="🤖", layout="wide")
     st.title("🤖 AI Code Debugger Pro")
     st.markdown("---")
     
-    # File Upload Section
     upload_type = st.radio("Input Method:", ["📝 Paste Code", "📁 Upload File", "🖼️ Image"])
-    
     code = None
     language = "python"
     
-    # Handle different input methods
     if upload_type == "📝 Paste Code":
         code = st.text_area("Enter Code:", height=300)
         language = st.selectbox("Select Language:", SUPPORTED_LANGUAGES)
-        
     elif upload_type == "📁 Upload File":
         file = st.file_uploader("Upload Code File", type=["py", "js", "java"])
         if file:
             try:
                 code = file.read().decode()
-                ext = file.name.split(".")[-1]
-                language = {"py": "python", "js": "javascript", "java": "java"}.get(ext)
+                language = {"py": "python", "js": "javascript", "java": "java"}.get(file.name.split(".")[-1])
             except Exception as e:
                 st.error(f"Error reading file: {str(e)}")
-                return
-            
     elif upload_type == "🖼️ Image":
         img_file = st.file_uploader("Upload Code Image", type=["png", "jpg", "jpeg"])
         if img_file:
@@ -253,7 +220,6 @@ def main():
             else:
                 language = st.selectbox("Select Language:", SUPPORTED_LANGUAGES)
     
-    # Analysis Section
     if code:
         st.markdown("---")
         st.subheader("🔍 Code Preview")
@@ -265,7 +231,7 @@ def main():
                 st.error(msg)
                 return
                 
-            with st.spinner("🧠 Analyzing Code (this may take 20-30 seconds)..."):
+            with st.spinner("🧠 Analyzing Code..."):
                 start_time = time.time()
                 result = analyze_code(code, language)
                 analysis_time = time.time() - start_time
@@ -280,54 +246,53 @@ def display_results(result, lang, time_taken):
     st.markdown("---")
     st.subheader("📊 Analysis Results")
     
-    # Metadata
     with st.expander("📄 Metadata", expanded=False):
-        st.write(f"Analysis Time: {time_taken:.2f}s")
-        st.write(f"Language: {lang.capitalize()}")
+        st.write(f"Analysis Time: {time_taken:.2f}s | Language: {lang.capitalize()}")
     
-    # Issues Column
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("🚨 Identified Issues")
-        
-        with st.expander("Syntax Errors", expanded=True):
-            if result.get("issues", {}).get("syntax_errors"):
-                st.write("\n\n".join(f"• {e}" for e in result["issues"]["syntax_errors"]))
-            else:
-                st.success("No syntax errors found!")
-                
-        with st.expander("Logical Errors"):
-            if result.get("issues", {}).get("logical_errors"):
-                st.write("\n\n".join(f"• {e}" for e in result["issues"]["logical_errors"]))
-            else:
-                st.info("No logical errors found")
-                
-        with st.expander("Security Issues"):
-            if result.get("issues", {}).get("security_issues"):
-                st.write("\n\n".join(f"⚠️ {e}" for e in result["issues"]["security_issues"]))
-            else:
-                st.success("No security issues found!")
+        _display_issues(result.get("issues", {}))
     
-    # Improvements Column
     with col2:
         st.subheader("✨ Improvements")
-        
-        with st.expander("Corrected Code", expanded=True):
-            st.code(result.get("improvements", {}).get("corrected_code", "No corrected code provided"), 
-                  language=lang)
-            
-        with st.expander("Optimizations"):
-            if result.get("improvements", {}).get("optimizations"):
-                st.write("\n\n".join(f"• {o}" for o in result["improvements"]["optimizations"]))
-            else:
-                st.info("No optimizations suggested")
-                
-        with st.expander("Security Fixes"):
-            if result.get("improvements", {}).get("security_fixes"):
-                st.write("\n\n".join(f"🔒 {f}" for f in result["improvements"]["security_fixes"]))
-            else:
-                st.info("No security fixes needed")
+        _display_improvements(result.get("improvements", {}), lang)
+
+def _display_issues(issues):
+    with st.expander("Syntax Errors", expanded=True):
+        if issues.get("syntax_errors"):
+            st.write("\n\n".join(f"• {e}" for e in issues["syntax_errors"]))
+        else:
+            st.success("No syntax errors found!")
+    
+    with st.expander("Logical Errors"):
+        if issues.get("logical_errors"):
+            st.write("\n\n".join(f"• {e}" for e in issues["logical_errors"]))
+        else:
+            st.info("No logical errors found")
+    
+    with st.expander("Security Issues"):
+        if issues.get("security_issues"):
+            st.write("\n\n".join(f"⚠️ {e}" for e in issues["security_issues"]))
+        else:
+            st.success("No security issues found!")
+
+def _display_improvements(improvements, lang):
+    with st.expander("Corrected Code", expanded=True):
+        st.code(improvements.get("corrected_code", "No corrected code provided"), language=lang)
+    
+    with st.expander("Optimizations"):
+        if improvements.get("optimizations"):
+            st.write("\n\n".join(f"• {o}" for o in improvements["optimizations"]))
+        else:
+            st.info("No optimizations suggested")
+    
+    with st.expander("Security Fixes"):
+        if improvements.get("security_fixes"):
+            st.write("\n\n".join(f"🔒 {f}" for f in improvements["security_fixes"]))
+        else:
+            st.info("No security fixes needed")
 
 if __name__ == "__main__":
     main()
