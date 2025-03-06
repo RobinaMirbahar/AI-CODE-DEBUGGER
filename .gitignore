@@ -1,102 +1,62 @@
 # .gitignore
-.streamlit/secrets.toml
-*.toml
 
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.pyre
-*.pytype/
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
-
-# Virtual Environment
-.venv/
+dist/
+build/
 venv/
 env/
-ENV/
-env.bak/
-venv.bak/
+.python-version
+
+# Streamlit
+.streamlit/secrets.toml
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*.sublime-workspace
-*.sublime-project
 
-
-# Credentials
-*.env
-*.env.local
-*.env.*.local
+# Environment files
 .env
-.envrc
-secrets/
-credentials.json
-service-account.json
-*.key
-*.pem
-*.cert
-*.cer
+.env.local
+.env.development
+.env.production
 
-# System
+# Jupyter
+.ipynb_checkpoints/
+
+# OS generated
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# Logs and databases
 *.log
 *.sqlite
-*.sql
-*.dump
+*.db
+
+# Local development
+*.local
 
 # Testing
 .coverage
 htmlcov/
 .pytest_cache/
-.mypy_cache/
-.tox/
-junit.xml
 
-# Logs
-*.log
-logs/
-
-# Local development
-temp/
-tmp/
+# Temporary files
 *.tmp
-*.bak
-*.save
-*~
+*.temp
 
-# Jupyter
-.ipynb_checkpoints/
-
-# Docker
-docker-compose.yml
-Dockerfile
-docker-compose.*.yml
-
-# Build artifacts
-dist/
-build/
-*.exe
-
-
+# Visual Studio Code
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
