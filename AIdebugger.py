@@ -38,13 +38,17 @@ Return strict JSON format:
 def initialize_debugger():
     """Configure Gemini debugger engine"""
     try:
+        # Verify secret exists
+        if "GEMINI_API_KEY" not in st.secrets:
+            raise ValueError("Missing GEMINI_API_KEY in secrets")
+            
+        # Configure with validated key
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         return genai.GenerativeModel('gemini-pro')
+        
     except Exception as e:
         st.error(f"🔧 Debugger Initialization Failed: {str(e)}")
         st.stop()
-
-model = initialize_debugger()
 
 # ======================
 # Core Debugging Logic
