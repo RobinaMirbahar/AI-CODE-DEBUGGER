@@ -29,32 +29,25 @@ Return JSON format:
 }}"""
 
 # ======================
-# Gemini Initialization (Corrected)
+# Corrected Initialization
 # ======================
 def initialize_debugger():
-    """Configure Gemini with valid endpoints"""
+    """Proper API configuration to fix 404 errors"""
     try:
         if "GEMINI_API_KEY" not in st.secrets:
             raise ValueError("Missing GEMINI_API_KEY in secrets")
 
-        # Correct API configuration
+        # Correct API endpoint configuration
         genai.configure(
             api_key=st.secrets["GEMINI_API_KEY"],
             transport='rest',
             client_options={
-                'api_endpoint': 'https://generativelanguage.googleapis.com/v1beta'
+                'api_endpoint': 'https://generativelanguage.googleapis.com/'  # Base URL
             }
         )
         
-        # Verify model availability
-        valid_models = ['gemini-pro', 'gemini-1.5-pro']
-        for model in valid_models:
-            try:
-                return genai.GenerativeModel(model)
-            except Exception as e:
-                continue
-                
-        raise ValueError("No valid models found")
+        # Use latest model name
+        return genai.GenerativeModel('gemini-1.0-pro')
         
     except Exception as e:
         st.error(f"🔧 Initialization Failed: {str(e)}")
@@ -70,11 +63,11 @@ def debug_code(code: str, language: str) -> dict:
     try:
         response = model.generate_content(
             DEBUG_PROMPT.format(language=language, code=code),
-            generation_config={
-                "temperature": 0.1,
-                "max_output_tokens": 4000,
-                "response_mime_type": "application/json"
-            }
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.1,
+                max_output_tokens=4000,
+                response_mime_type="application/json"
+            )
         )
         
         if not response.text:
@@ -82,15 +75,12 @@ def debug_code(code: str, language: str) -> dict:
             
         return parse_debug_response(response.text)
         
-    except genai.types.StopCandidateException as e:
-        return {"error": f"Content safety blocked: {str(e)}"}
     except Exception as e:
         return {"error": f"API Error: {str(e)}"}
 
 def parse_debug_response(response: str) -> dict:
     """Validate and parse response"""
     try:
-        # Handle markdown JSON wrapping
         json_str = re.search(r'\{.*\}', response, re.DOTALL)
         if not json_str:
             raise ValueError("No JSON found in response")
