@@ -124,72 +124,91 @@ def extract_code_from_image(image_file):
         return None, f"OCR Failed: {str(e)}"
 
 # ======================
-# Code Analysis
+# Code Analysis (Improved)
 # ======================
-def validate_code(code):
-    """Validate code before analysis"""
-    if not code or len(code.strip()) < 20:
-        return False, "Code too short (minimum 20 characters)"
-    if len(code) > MAX_CODE_LENGTH:
-        return False, f"Code exceeds {MAX_CODE_LENGTH} character limit"
-    return True, ""
+MAX_RETRIES = 5  # Increased from 3
+RETRY_DELAY = 2.5  # Increased from 1.5
+MAX_CODE_LENGTH = 8000  # Reduced from 15000
 
 def analyze_code(code, language):
-    """Analyze code with retry logic"""
+    """Analyze code with enhanced error handling"""
     for attempt in range(MAX_RETRIES):
         try:
             model = genai.GenerativeModel('gemini-pro', safety_settings=SAFETY_SETTINGS)
-            response = model.generate_content(
-                ANALYSIS_PROMPT.format(language=language, code=code),
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.1,
-                    max_output_tokens=4000
-                )
-            )
             
-            if not response.text:
-                raise ValueError("Empty API response")
+            # Split large code into chunks
+            code_chunks = [code[i:i+4000] for i in range(0, len(code), 4000)]
+            
+            responses = []
+            for chunk in code_chunks:
+                response = model.generate_content(
+                    ANALYSIS_PROMPT.format(language=language, code=chunk),
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=0.1,
+                        max_output_tokens=4000,
+                        response_mime_type="application/json"
+                    )
+                )
+                responses.append(response.text)
                 
-            return parse_response(response.text)
+            return parse_response("".join(responses))
+            
+        except (genai.types.StopCandidateException, 
+                genai.types.BlockedPromptException) as e:
+            st.error(f"Content safety violation: {str(e)}")
+            return {"error": "Content blocked by safety filters"}
+            
         except Exception as e:
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(RETRY_DELAY * (attempt + 1))
-            continue
-    return {"error": "Analysis failed after multiple attempts"}
+            error_msg = f"Attempt {attempt+1} failed: {str(e)}"
+            st.warning(error_msg)
+            time.sleep(RETRY_DELAY * (attempt + 1))
+            
+    return {"error": f"Analysis failed after {MAX_RETRIES} attempts"}
 
 def parse_response(response_text):
-    """Parse and validate API response"""
+    """Enhanced JSON parsing with validation"""
     try:
-        # Clean response
-        cleaned = re.sub(r'[\x00-\x1F]', '', response_text)
+        # Normalize JSON structure
+        normalized = re.sub(
+            r'(?<!\\)\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})', 
+            r'\\\\',
+            response_text
+        )
         
-        # Try different parsing strategies
-        json_str = None
-        try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError:
-            pass
-
-        # Try extracting JSON from markdown code block
-        json_match = re.search(r'```(?:json)?\n(.*?)```', cleaned, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1)
-        else:
-            # Find JSON object in text
-            json_str_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
-            if json_str_match:
-                json_str = json_str_match.group()
-
-        if json_str:
-            result = json.loads(json_str)
-            # Validate response structure
-            if all(key in result for key in ["issues", "improvements"]):
-                return result
+        # Try multiple parsing strategies
+        for strategy in [json.loads, self._parse_json_blocks]:
+            try:
+                result = strategy(normalized)
+                if self._validate_result(result):
+                    return result
+            except:
+                continue
+                
+        return {"error": "Could not parse valid JSON response"}
         
-        raise ValueError("Invalid JSON structure")
     except Exception as e:
-        return {"error": f"Response Parsing Failed: {str(e)}"}
+        return {"error": f"Parsing failed: {str(e)}"}
 
+def _parse_json_blocks(self, text):
+    """Extract JSON from markdown code blocks"""
+    json_blocks = re.findall(r'```(?:json)?\n(.*?)\n```', text, re.DOTALL)
+    combined = "\n".join(json_blocks)
+    return json.loads(combined)
+
+def _validate_result(self, result):
+    """Validate response structure"""
+    required_keys = {
+        'issues': ['syntax_errors', 'logical_errors', 'security_issues'],
+        'improvements': ['corrected_code', 'optimizations', 'security_fixes']
+    }
+    
+    for category, keys in required_keys.items():
+        if category not in result:
+            return False
+        for key in keys:
+            if key not in result[category]:
+                return False
+    return True
 # ======================
 # Streamlit UI
 # ======================
