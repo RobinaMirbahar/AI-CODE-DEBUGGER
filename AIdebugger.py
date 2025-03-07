@@ -32,6 +32,9 @@ Return JSON format:
 # API Setup
 # ======================
 
+# ======================
+# Corrected API Setup
+# ======================
 def initialize_debugger():
     """Proper API configuration with valid endpoints"""
     try:
@@ -52,7 +55,15 @@ def initialize_debugger():
         
     except Exception as e:
         st.error(f"🔌 Connection Failed: {str(e)}")
-        st.stop()
+        st.stop()  # Stop the app if initialization fails
+
+# Initialize the model
+model = initialize_debugger()
+
+# Ensure the model is defined before proceeding
+if model is None:
+    st.error("Failed to initialize the model. Please check your API key and configuration.")
+    st.stop()
 
 # ======================
 # Debugging Core (Updated)
