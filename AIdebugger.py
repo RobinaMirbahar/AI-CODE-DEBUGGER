@@ -35,6 +35,9 @@ Return JSON format:
 # ======================
 # Corrected API Setup
 # ======================
+# ======================
+# Corrected API Setup
+# ======================
 def initialize_debugger():
     """Proper API configuration with valid endpoints"""
     try:
@@ -50,8 +53,8 @@ def initialize_debugger():
             }
         )
         
-        # Use validated model name
-        return genai.GenerativeModel('gemini-pro')
+        # Use the correct model name and version
+        return genai.GenerativeModel('gemini-1.0-pro')  # Updated model name
         
     except Exception as e:
         st.error(f"🔌 Connection Failed: {str(e)}")
