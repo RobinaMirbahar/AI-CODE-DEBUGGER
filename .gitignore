@@ -1,8 +1,14 @@
+echo ".streamlit/secrets.toml
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.env
-.DS_Store
-.streamlit/secrets.toml
+venv/
+env/
+*.env
+logs/
 *.log
+.ipynb_checkpoints/
+.vscode/
+requirements.txt.lock
+poetry.lock" > .gitignore
