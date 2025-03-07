@@ -42,12 +42,12 @@ def initialize_debugger():
             api_key=st.secrets["GEMINI_API_KEY"],
             transport='rest',
             client_options={
-                'api_endpoint': 'https://generativelanguage.googleapis.com/v1'  # Single API version
+                'api_endpoint': 'https://generativelanguage.googleapis.com/v1beta'
             }
         )
         
-        # Use latest validated model
-        return genai.GenerativeModel('gemini-1.0-pro')
+        # Use correct model name
+        return genai.GenerativeModel('gemini-pro')
         
     except Exception as e:
         st.error(f"🔌 Connection Failed: {str(e)}")
@@ -69,10 +69,6 @@ def debug_code(code: str, language: str) -> dict:
                 response_mime_type="application/json"
             )
         )
-        
-        # Debug: Print raw API response
-        st.write("API Response:", response.text)  # For troubleshooting
-        
         return validate_response(response.text)
         
     except Exception as e:
@@ -81,14 +77,12 @@ def debug_code(code: str, language: str) -> dict:
 def validate_response(response_text: str) -> dict:
     """Validate API response structure"""
     try:
-        # Handle different JSON formats
         json_str = re.search(r'\{.*\}', response_text, re.DOTALL)
         if not json_str:
             raise ValueError("No JSON found in response")
             
         response_data = json.loads(json_str.group())
         
-        # Required structure validation
         required_keys = {
             "metadata": ["analysis_time", "complexity"],
             "issues": ["syntax_errors", "logical_errors", "security_issues"],
@@ -137,7 +131,6 @@ def display_results(data: dict, lang: str):
     """Display analysis results"""
     st.subheader("📊 Analysis Report")
     
-    # Metadata
     cols = st.columns(3)
     cols[0].metric("Complexity", data['metadata']['complexity'].upper())
     cols[1].metric("Analysis Time", f"{data['metadata']['analysis_time']:.2f}s")
@@ -146,7 +139,6 @@ def display_results(data: dict, lang: str):
                   len(data['issues']['logical_errors']) + 
                   len(data['issues']['security_issues']))
     
-    # Issues
     with st.expander("🚨 Detailed Issues"):
         st.subheader("Syntax Errors")
         for err in data['issues']['syntax_errors']:
@@ -163,17 +155,14 @@ def display_results(data: dict, lang: str):
             st.markdown(f"**Line {err['line']}:** {err['message']}")
             st.code(f"Fix: {err['fix']}", language=lang)
     
-    # Corrected Code
     st.subheader("✅ Corrected Code")
     st.code(data['improvements']['corrected_code'], language=lang)
     
-    # Optimizations
     if data['improvements']['optimizations']:
         st.subheader("🚀 Optimizations")
         for opt in data['improvements']['optimizations']:
             st.markdown(f"- {opt}")
     
-    # Security Fixes
     if data['improvements']['security_fixes']:
         st.subheader("🔒 Security Fixes")
         for fix in data['improvements']['security_fixes']:
