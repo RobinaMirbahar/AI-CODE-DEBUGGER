@@ -29,8 +29,9 @@ Return JSON format:
 }}"""
 
 # ======================
-# Corrected API Setup
+# API Setup
 # ======================
+
 def initialize_debugger():
     """Proper API configuration with valid endpoints"""
     try:
@@ -42,18 +43,16 @@ def initialize_debugger():
             api_key=st.secrets["GEMINI_API_KEY"],
             transport='rest',
             client_options={
-                'api_endpoint': 'https://generativelanguage.googleapis.com/v1beta'
+                'api_endpoint': 'https://generativelanguage.googleapis.com'  # Base endpoint only
             }
         )
         
-        # Use correct model name
+        # Use validated model name
         return genai.GenerativeModel('gemini-pro')
         
     except Exception as e:
         st.error(f"🔌 Connection Failed: {str(e)}")
         st.stop()
-
-model = initialize_debugger()
 
 # ======================
 # Debugging Core (Updated)
