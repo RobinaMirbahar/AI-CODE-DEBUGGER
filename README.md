@@ -3,8 +3,7 @@
 ![AI Code Debugger](https://img.shields.io/badge/Made_with-Google_Gemini_2.0_Pro-blue?style=flat-square&logo=googlecloud)  
 **AI Code Debugger Pro** is an AI-powered tool designed to assist developers in **debugging, optimizing, and generating** code with **Google Gemini 2.0 Pro**. Whether you need to fix errors, improve performance, or generate code snippets, this interactive tool streamlines the process in a user-friendly interface.  
 
-🔗 **Live Demo:** [AI Code Debugger Pro](https://aicodedebug.streamlit.app/)  
-
+🔗 **Live Demo:** [AI Code Debugger Pro](https://ai-code-debugger.streamlit.app/)  
 
 ## ✨ Key Features  
 
@@ -18,6 +17,14 @@
    ✅ **Corrected Code** (with line numbers & highlights).  
    ✅ **Error Explanation** (detailed breakdown).  
    ✅ **Optimization Suggestions** (best practices & security tips).  
+
+### 🤖 **AI Agent for Follow-Up Questions**  
+✔️ Ask follow-up questions about the analyzed code.  
+✔️ Get **context-aware answers** based on the code and analysis results.  
+✔️ Example questions:  
+   - "Can you explain the security issue on line 12?"  
+   - "How can I optimize this code further?"  
+   - "What does the complexity 'medium' mean in this context?"  
 
 ### 💡 **AI Code Generation** (Powered by Gemini 2.0 Pro)  
 ✔️ Enter a **natural language prompt**, and AI will generate fully functional, optimized code.  
@@ -35,14 +42,12 @@
 ✔️ **Powered by Google Gemini 2.0 Pro** for **high-quality AI-driven analysis**.  
 ✔️ **No code storage beyond the session** for **security & privacy**.  
 
-
-## 🧠 **Model Used: Google Gemini 2.0 Pro**  
+## � **Model Used: Google Gemini 2.0 Pro**  
 
 🔹 **Why Gemini 2.0 Pro?**  
 ✅ **Advanced NLP** – Handles complex coding queries.  
 ✅ **Contextual Understanding** – Provides in-depth debugging & categorization.  
 ✅ **Optimized for Code Generation** – Produces structured, efficient, and secure code.  
-
 
 ## 🎯 **Use Cases**  
 
@@ -51,16 +56,42 @@
 🔍 **Security Analysts** – Identify vulnerabilities in the code.  
 📊 **Tech Leads & Reviewers** – Automate parts of the review process.  
 
-
 ## 🎬 **Demo Walkthrough**  
 
 🔹 **Step 1:** Paste or Upload Code → Select language & analysis type → Click **Analyze Code**  
-  
+
 🔹 **Step 2:** AI Debugging & Recommendations → View **Corrected Code, Explanation & Optimizations**  
-   
+
 🔹 **Step 3:** AI Code Generation → Enter a description → Click **Generate Code**  
 
+🔹 **Step 4:** Ask Follow-Up Questions → Get **context-aware answers** from the AI agent.  
 
+## 🔄 **Workflow**  
+
+1. **Input Code**:  
+   - Upload a code file or paste code directly into the text area.  
+   - Select the programming language or use **Auto-Detect**.  
+
+2. **Analyze Code**:  
+   - Click **Analyze Code** to start the AI-powered analysis.  
+   - The app detects **syntax errors, logical errors, and security issues**.  
+
+3. **View Results**:  
+   - See the **corrected code** with line numbers and highlights.  
+   - Read detailed explanations of errors and fixes.  
+   - Get **optimization suggestions** and **security tips**.  
+
+4. **Ask Follow-Up Questions**:  
+   - Use the AI agent to ask questions about the analyzed code.  
+   - Get **context-aware answers** based on the code and analysis results.  
+
+5. **Generate Code**:  
+   - Enter a natural language prompt to generate new code.  
+   - The AI generates **fully functional, optimized code** based on your description.  
+
+6. **Compare & Optimize**:  
+   - View **side-by-side comparisons** of the original and corrected code.  
+   - Apply **optimizations** and **security fixes** suggested by the AI.  
 
 ## 🚀 **Get Started**  
 
@@ -68,30 +99,19 @@
 Ensure you have **Python 3.8+** installed, then run:  
 
 ```bash
-pip install streamlit google-generativeai
+pip install streamlit google-generativeai pygments
 ```
-
-### 2️⃣ **Run the App**  
+### 2️⃣ ** Run the App** 
 ```bash
 streamlit run AIdebugger.py
 ```
-
-
-## 🌟 **Contribute & Support**  
-
-🛠️ **Want to improve AI Code Debugger Pro?** Contributions are welcome! Fork the repo and submit a PR.  
-
-📢 **Found a bug?** Open an issue!  
-
-📩 **Need support?** Reach out at [mallah.robina@gmail.com] 
-
+### 🌟 Contribute & Support ### 
+🛠️ Want to improve AI Code Debugger Pro? Contributions are welcome! Fork the repo and submit a PR.
 
 ## 🔥 **Conclusion**  
 
-AI Code Debugger Pro, powered by **Google Gemini 2.0 Pro**, is a **game-changer for developers** – offering **instant debugging, deep analysis, and AI-generated solutions** to **save time and improve code quality.** 🚀  
+AI Code Debugger Pro, powered by **Google Gemini 2.0 Pro**, is a **game-changer for developers** – offering **instant debugging, deep analysis, AI-generated solutions, and follow-up support** to **save time and improve code quality.** 🚀  
 
-
-
-🔗 **Try it now:** [AI Code Debugger Pro](https://aicodedebug.streamlit.app/)  
+🔗 **Try it now:** [AI Code Debugger Pro](https://ai-code-debugger.streamlit.app/)  
 
 
