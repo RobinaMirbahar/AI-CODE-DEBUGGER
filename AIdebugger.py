@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import google.generativeai as genai
 import json
@@ -12,10 +13,7 @@ DEBUG_PROMPT = """Analyze and debug this {language} code:
 
 Return JSON format:
 {{
-  "metadata": {{
-    "analysis_time": float,
-    "complexity": "low/medium/high"
-  }},
+  "metadata": {{"analysis_time": float, "complexity": "low/medium/high"}},
   "issues": {{
     "syntax_errors": [{{"line": int, "message": str, "fix": str}}],
     "logical_errors": [{{"line": int, "message": str, "fix": str}}],
@@ -31,83 +29,81 @@ Return JSON format:
 # ======================
 # API Setup
 # ======================
-
-# ======================
-# Corrected API Setup
-# ======================
-# ======================
-# Corrected API Setup
-# ======================
 def initialize_debugger():
     """Proper API configuration with valid endpoints"""
     try:
-        if "GEMINI_API_KEY" not in st.secrets:
-            raise ValueError("Missing GEMINI_API_KEY in secrets")
+        # Fetch API key from Streamlit secrets or environment variables
+        if "GEMINI" in st.secrets:
+            api_key = st.secrets["GEMINI"]["api_key"]
+        else:
+            api_key = os.getenv("GEMINI_API_KEY")
 
-        # Correct API configuration
-        genai.configure(
-            api_key=st.secrets["GEMINI_API_KEY"],
-            transport='rest',
-            client_options={
-                'api_endpoint': 'https://generativelanguage.googleapis.com'  # Base endpoint only
-            }
-        )
-        
-        # Use the correct model name and version
-        return genai.GenerativeModel('gemini-1.0-pro')  # Updated model name
-        
+        if not api_key:
+            st.error("❌ Missing API Key! Check your `.streamlit/secrets.toml` or environment variables.")
+            st.stop()
+
+        # Configure Generative AI API
+        genai.configure(api_key=api_key)
+
+        # Use the correct model version
+        return genai.GenerativeModel('gemini-1.5-pro')
+
     except Exception as e:
         st.error(f"🔌 Connection Failed: {str(e)}")
-        st.stop()  # Stop the app if initialization fails
+        st.stop()
 
 # Initialize the model
 model = initialize_debugger()
-
-# Ensure the model is defined before proceeding
 if model is None:
-    st.error("Failed to initialize the model. Please check your API key and configuration.")
+    st.error("❌ Failed to initialize the model. Check your API key and configuration.")
     st.stop()
 
 # ======================
-# Debugging Core (Updated)
+# Debugging Core
 # ======================
 def debug_code(code: str, language: str) -> dict:
-    """Execute code analysis with proper endpoint"""
+    """Execute code analysis with proper API calls"""
     try:
-        response = model.generate_content(
-            DEBUG_PROMPT.format(language=language, code=code),
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.1,
-                max_output_tokens=4000,
-                response_mime_type="application/json"
-            )
-        )
-        return validate_response(response.text)
+        # Generate the prompt for debugging
+        prompt = DEBUG_PROMPT.format(language=language, code=code)
         
+        # Send the prompt to the model
+        response = model.generate_content(prompt)
+        
+        # Print raw response for debugging
+        print("Raw API Response:", response.text)
+
+        # Validate and parse the response
+        return validate_response(response.text)
+
     except Exception as e:
         return {"error": f"API Error: {str(e)}"}
 
 def validate_response(response_text: str) -> dict:
-    """Validate API response structure"""
+    """Validate and parse API response JSON"""
     try:
+        # Extract JSON from the response
         json_str = re.search(r'\{.*\}', response_text, re.DOTALL)
         if not json_str:
-            raise ValueError("No JSON found in response")
-            
+            print("⚠️ No JSON found in response. Full Response:", response_text)
+            return {"error": "API response is not in JSON format"}
+
+        # Parse JSON
         response_data = json.loads(json_str.group())
-        
+
+        # Ensure expected keys are present
         required_keys = {
             "metadata": ["analysis_time", "complexity"],
             "issues": ["syntax_errors", "logical_errors", "security_issues"],
             "improvements": ["corrected_code", "optimizations", "security_fixes"]
         }
-        
+
         for category, keys in required_keys.items():
             if not all(key in response_data.get(category, {}) for key in keys):
                 raise ValueError(f"Invalid {category} structure")
-                
+
         return response_data
-        
+
     except Exception as e:
         return {"error": f"Validation failed: {str(e)}"}
 
@@ -115,69 +111,73 @@ def validate_response(response_text: str) -> dict:
 # Streamlit Interface
 # ======================
 def main():
-    st.set_page_config(
-        page_title="AI Code Debugger Pro",
-        page_icon="🐞",
-        layout="wide"
-    )
-    
+    st.set_page_config(page_title="AI Code Debugger Pro", page_icon="🐞", layout="wide")
     st.title("🐞 AI Code Debugger Pro")
-    code = st.text_area("Input Code:", height=300)
-    language = st.selectbox("Language:", ["python", "javascript", "java"])
-    
-    if st.button("Analyze Code"):
+    st.write("Analyze and debug your code using Gemini AI.")
+
+    # Input fields
+    code = st.text_area("📜 Paste your code here:", height=300)
+    language = st.selectbox("🌐 Select Programming Language:", ["python", "javascript", "java"])
+
+    # Analyze button
+    if st.button("🚀 Analyze Code"):
         if not code.strip():
-            st.warning("Please input code to analyze")
+            st.warning("⚠️ Please input some code to analyze.")
             return
-            
-        with st.spinner("Analyzing..."):
+
+        with st.spinner("🔍 Analyzing..."):
             start = time.time()
             result = debug_code(code, language.lower())
             elapsed = time.time() - start
-            
-            if "error" in result:
-                st.error(f"Error: {result['error']}")
-            else:
-                display_results(result, language.lower())
 
-def display_results(data: dict, lang: str):
+            if "error" in result:
+                st.error(f"❌ Error: {result['error']}")
+            else:
+                display_results(result, language.lower(), elapsed)
+
+def display_results(data: dict, lang: str, elapsed_time: float):
     """Display analysis results"""
     st.subheader("📊 Analysis Report")
     
+    # Metrics
     cols = st.columns(3)
-    cols[0].metric("Complexity", data['metadata']['complexity'].upper())
-    cols[1].metric("Analysis Time", f"{data['metadata']['analysis_time']:.2f}s")
-    cols[2].metric("Total Issues", 
+    cols[0].metric("⚡ Complexity", data['metadata']['complexity'].upper())
+    cols[1].metric("⏳ Analysis Time", f"{elapsed_time:.2f}s")
+    cols[2].metric("❗ Total Issues", 
                   len(data['issues']['syntax_errors']) + 
                   len(data['issues']['logical_errors']) + 
                   len(data['issues']['security_issues']))
     
+    # Detailed Issues
     with st.expander("🚨 Detailed Issues"):
-        st.subheader("Syntax Errors")
+        st.subheader("🔴 Syntax Errors")
         for err in data['issues']['syntax_errors']:
             st.markdown(f"**Line {err['line']}:** {err['message']}")
             st.code(f"Fix: {err['fix']}", language=lang)
-            
-        st.subheader("Logical Errors")
+
+        st.subheader("🟠 Logical Errors")
         for err in data['issues']['logical_errors']:
             st.markdown(f"**Line {err['line']}:** {err['message']}")
             st.code(f"Fix: {err['fix']}", language=lang)
-            
-        st.subheader("Security Issues")
+
+        st.subheader("🔒 Security Issues")
         for err in data['issues']['security_issues']:
             st.markdown(f"**Line {err['line']}:** {err['message']}")
             st.code(f"Fix: {err['fix']}", language=lang)
-    
+
+    # Corrected Code
     st.subheader("✅ Corrected Code")
     st.code(data['improvements']['corrected_code'], language=lang)
-    
+
+    # Optimizations
     if data['improvements']['optimizations']:
         st.subheader("🚀 Optimizations")
         for opt in data['improvements']['optimizations']:
             st.markdown(f"- {opt}")
-    
+
+    # Security Fixes
     if data['improvements']['security_fixes']:
-        st.subheader("🔒 Security Fixes")
+        st.subheader("🔐 Security Fixes")
         for fix in data['improvements']['security_fixes']:
             st.markdown(f"- {fix}")
 
