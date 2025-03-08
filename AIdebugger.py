@@ -108,6 +108,41 @@ def validate_response(response_text: str) -> dict:
         return {"error": f"Validation failed: {str(e)}"}
 
 # ======================
+# AI Agent for Further Questions
+# ======================
+def initialize_ai_agent():
+    """Initialize the AI agent for follow-up questions"""
+    generation_config = {
+        "temperature": 1,
+        "top_p": 0.95,
+        "top_k": 40,
+        "max_output_tokens": 8192,
+        "response_mime_type": "text/plain",
+    }
+
+    system_instruction = (
+        "You are an experienced software engineer specializing in debugging and optimizing code. "
+        "Your role is to analyze errors, identify root causes, and provide correct solutions based on the given environment.\n\n"
+        "Guidelines:\n"
+        "1️⃣ Accurate Diagnosis: Analyze error messages carefully and identify root causes.\n"
+        "2️⃣ System-Specific Solutions: Consider the user's OS (Windows/Linux/macOS), Python version, and dependencies.\n"
+        "3️⃣ Corrected Code Output: Provide the corrected version of the faulty code.\n"
+        "4️⃣ Step-by-Step Fixes: Explain each fix clearly, ensuring the user understands why it works.\n"
+        "5️⃣ Commands & Logs: If CLI commands are needed (e.g., pip install, kill -9 PID), format them correctly.\n"
+        "6️⃣ Verify Fix: Suggest a method to test and confirm the issue is resolved."
+    )
+
+    return genai.GenerativeModel(
+        model_name="gemini-1.5-pro",
+        generation_config=generation_config,
+        system_instruction=system_instruction,
+    )
+
+# Initialize the AI agent
+ai_agent = initialize_ai_agent()
+chat_session = ai_agent.start_chat(history=[])
+
+# ======================
 # Streamlit Interface
 # ======================
 def main():
@@ -135,8 +170,18 @@ def main():
             else:
                 display_results(result, language.lower(), elapsed)
 
+    # AI Agent for Follow-Up Questions
+    st.markdown("---")
+    st.subheader("🤖 AI Agent: Ask Follow-Up Questions")
+    user_question = st.text_input("Ask a question about your code:")
+    if user_question:
+        with st.spinner("🤖 Thinking..."):
+            response = chat_session.send_message(user_question)
+            st.write("**AI Response:**")
+            st.write(response.text)
 
-    
+def display_results(data: dict, lang: str, elapsed_time: float):
+    """Display analysis results"""
     # Detailed Issues
     with st.expander("🚨 Detailed Issues"):
         st.subheader("🔴 Syntax Errors")
