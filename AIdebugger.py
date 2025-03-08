@@ -25,7 +25,10 @@ Return JSON format:
     "optimizations": [str],
     "security_fixes": [str]
   }}
-}}"""
+}}
+
+IMPORTANT: Return ONLY valid JSON. Do not include any additional text or explanations outside the JSON structure.
+"""
 
 # ======================
 # API Setup
@@ -58,33 +61,41 @@ def initialize_debugger():
 # ======================
 def debug_code(code: str, language: str, model) -> dict:
     """Execute code analysis with proper API calls"""
-    try:
-        # Generate the prompt for debugging
-        prompt = DEBUG_PROMPT.format(language=language, code=code)
-        
-        # Send the prompt to the model
-        response = model.generate_content(prompt)
-        
-        # Print raw response for debugging
-        print("Raw API Response:", response.text)
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # Generate the prompt for debugging
+            prompt = DEBUG_PROMPT.format(language=language, code=code)
+            
+            # Send the prompt to the model
+            response = model.generate_content(prompt)
+            
+            # Print raw response for debugging
+            print("Raw API Response:", response.text)
 
-        # Validate and parse the response
-        return validate_response(response.text)
+            # Validate and parse the response
+            return validate_response(response.text)
 
-    except Exception as e:
-        return {"error": f"API Error: {str(e)}"}
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {str(e)}")
+            if attempt == max_retries - 1:
+                return {"error": f"API Error: {str(e)}"}
+            time.sleep(2)  # Wait before retrying
 
 def validate_response(response_text: str) -> dict:
     """Validate and parse API response JSON"""
     try:
-        # Extract JSON from the response
-        json_str = re.search(r'\{.*\}', response_text, re.DOTALL)
-        if not json_str:
+        # Extract JSON from the response using regex
+        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+        if not json_match:
             print("⚠️ No JSON found in response. Full Response:", response_text)
             return {"error": "API response is not in JSON format"}
 
+        json_str = json_match.group()
+        print("Extracted JSON:", json_str)
+
         # Parse JSON
-        response_data = json.loads(json_str.group())
+        response_data = json.loads(json_str)
 
         # Ensure expected keys are present
         required_keys = {
@@ -99,6 +110,9 @@ def validate_response(response_text: str) -> dict:
 
         return response_data
 
+    except json.JSONDecodeError as e:
+        print("⚠️ Invalid JSON format. Error:", e)
+        return {"error": f"Invalid JSON format: {str(e)}"}
     except Exception as e:
         return {"error": f"Validation failed: {str(e)}"}
 
