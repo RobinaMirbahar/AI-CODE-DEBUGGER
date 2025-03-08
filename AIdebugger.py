@@ -135,18 +135,7 @@ def main():
             else:
                 display_results(result, language.lower(), elapsed)
 
-def display_results(data: dict, lang: str, elapsed_time: float):
-    """Display analysis results"""
-    st.subheader("📊 Analysis Report")
-    
-    # Metrics
-    cols = st.columns(3)
-    cols[0].metric("⚡ Complexity", data['metadata']['complexity'].upper())
-    cols[1].metric("⏳ Analysis Time", f"{elapsed_time:.2f}s")
-    cols[2].metric("❗ Total Issues", 
-                  len(data['issues']['syntax_errors']) + 
-                  len(data['issues']['logical_errors']) + 
-                  len(data['issues']['security_issues']))
+
     
     # Detailed Issues
     with st.expander("🚨 Detailed Issues"):
