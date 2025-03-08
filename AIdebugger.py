@@ -4,6 +4,7 @@ import google.generativeai as genai
 import json
 import re
 import time
+from pygments.lexers import guess_lexer
 
 # ======================
 # Configuration
@@ -51,12 +52,6 @@ def initialize_debugger():
     except Exception as e:
         st.error(f"🔌 Connection Failed: {str(e)}")
         st.stop()
-
-# Initialize the model
-model = initialize_debugger()
-if model is None:
-    st.error("❌ Failed to initialize the model. Check your API key and configuration.")
-    st.stop()
 
 # ======================
 # Debugging Core
@@ -108,43 +103,15 @@ def validate_response(response_text: str) -> dict:
         return {"error": f"Validation failed: {str(e)}"}
 
 # ======================
-# AI Agent for Further Questions
+# Auto-Detect Language
 # ======================
-def initialize_ai_agent():
-    """Initialize the AI agent for follow-up questions"""
+def detect_language(code: str, selected_language: str) -> str:
+    """Detect the programming language of the code using pygments or fallback to user selection"""
     try:
-        generation_config = {
-            "temperature": 1,
-            "top_p": 0.95,
-            "top_k": 40,
-            "max_output_tokens": 8192,
-            "response_mime_type": "text/plain",
-        }
-
-        system_instruction = (
-            "You are an experienced software engineer specializing in debugging and optimizing code. "
-            "Your role is to analyze errors, identify root causes, and provide correct solutions based on the given environment.\n\n"
-            "Guidelines:\n"
-            "1️⃣ Accurate Diagnosis: Analyze error messages carefully and identify root causes.\n"
-            "2️⃣ System-Specific Solutions: Consider the user's OS (Windows/Linux/macOS), Python version, and dependencies.\n"
-            "3️⃣ Corrected Code Output: Provide the corrected version of the faulty code.\n"
-            "4️⃣ Step-by-Step Fixes: Explain each fix clearly, ensuring the user understands why it works.\n"
-            "5️⃣ Commands & Logs: If CLI commands are needed (e.g., pip install, kill -9 PID), format them correctly.\n"
-            "6️⃣ Verify Fix: Suggest a method to test and confirm the issue is resolved."
-        )
-
-        return genai.GenerativeModel(
-            model_name="gemini-1.5-pro",
-            generation_config=generation_config,
-            system_instruction=system_instruction,
-        )
-    except Exception as e:
-        st.error(f"❌ Failed to initialize AI agent: {str(e)}")
-        st.stop()
-
-# Initialize the AI agent
-ai_agent = initialize_ai_agent()
-chat_session = ai_agent.start_chat(history=[])
+        lexer = guess_lexer(code)
+        return lexer.name.lower()
+    except Exception:
+        return selected_language.lower()  # Fallback to user-selected language
 
 # ======================
 # Streamlit Interface
@@ -154,9 +121,31 @@ def main():
     st.title("🐞 AI Code Debugger Pro")
     st.write("Analyze and debug your code using Gemini AI.")
 
-    # Input fields
-    code = st.text_area("📜 Paste your code here:", height=300)
-    language = st.selectbox("🌐 Select Programming Language:", ["python", "javascript", "java"])
+    # Initialize the model inside the main function
+    model = initialize_debugger()
+    if model is None:
+        st.error("❌ Failed to initialize the model. Check your API key and configuration.")
+        st.stop()
+
+    # File uploader
+    uploaded_file = st.file_uploader("📤 Upload a code file", type=["py", "js", "java", "cpp", "cs", "go"])
+    if uploaded_file:
+        try:
+            code = uploaded_file.read().decode("utf-8")
+        except UnicodeDecodeError:
+            st.error("⚠️ Invalid file format - please upload text-based source files")
+            return
+    else:
+        code = st.text_area("📜 Paste your code here:", height=300)
+
+    # Language selection
+    language = st.selectbox("🌐 Select Programming Language:", ["Auto-Detect", "python", "javascript", "java", "cpp", "cs", "go"])
+
+    # Auto-detect language if selected
+    if language == "Auto-Detect":
+        detected_language = detect_language(code, language)
+        st.write(f"🔍 Detected Language: **{detected_language.capitalize()}**")
+        language = detected_language
 
     # Analyze button
     if st.button("🚀 Analyze Code"):
@@ -173,21 +162,6 @@ def main():
                 st.error(f"❌ Error: {result['error']}")
             else:
                 display_results(result, language.lower(), elapsed)
-
-    # AI Agent for Follow-Up Questions
-    st.markdown("---")
-    st.subheader("🤖 AI Agent: Ask Follow-Up Questions")
-    user_question = st.text_input("Ask a question about your code:")
-    if user_question and user_question.strip():  # Ensure the input is not empty
-        with st.spinner("🤖 Thinking..."):
-            try:
-                response = chat_session.send_message(user_question)
-                st.write("**AI Response:**")
-                st.write(response.text)
-            except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
-    else:
-        st.warning("⚠️ Please enter a valid question.")
 
 def display_results(data: dict, lang: str, elapsed_time: float):
     """Display analysis results"""
