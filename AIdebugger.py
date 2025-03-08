@@ -56,7 +56,7 @@ def initialize_debugger():
 # ======================
 # Debugging Core
 # ======================
-def debug_code(code: str, language: str) -> dict:
+def debug_code(code: str, language: str, model) -> dict:
     """Execute code analysis with proper API calls"""
     try:
         # Generate the prompt for debugging
@@ -155,7 +155,7 @@ def main():
 
         with st.spinner("🔍 Analyzing..."):
             start = time.time()
-            result = debug_code(code, language.lower())
+            result = debug_code(code, language.lower(), model)  # Pass the model to debug_code
             elapsed = time.time() - start
 
             if "error" in result:
