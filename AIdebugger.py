@@ -114,6 +114,24 @@ def detect_language(code: str, selected_language: str) -> str:
         return selected_language.lower()  # Fallback to user-selected language
 
 # ======================
+# AI Agent for Follow-Up Questions
+# ======================
+def ask_follow_up(question: str, context: str, model) -> str:
+    """Ask a follow-up question to the AI agent"""
+    try:
+        prompt = f"""Context:
+{context}
+
+Question:
+{question}
+
+Answer the question based on the context above:"""
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# ======================
 # Streamlit Interface
 # ======================
 def main():
@@ -162,6 +180,25 @@ def main():
                 st.error(f"❌ Error: {result['error']}")
             else:
                 display_results(result, language.lower(), elapsed)
+
+                # Store the result in session state for follow-up questions
+                st.session_state["analysis_result"] = result
+                st.session_state["code_context"] = code
+
+    # Follow-up questions section
+    if "analysis_result" in st.session_state:
+        st.divider()
+        st.subheader("🤖 AI Agent: Follow-Up Questions")
+        follow_up_question = st.text_input("❓ Ask a follow-up question about the code:")
+        if follow_up_question:
+            with st.spinner("🤖 Thinking..."):
+                context = f"""Code:
+{st.session_state["code_context"]}
+
+Analysis Result:
+{json.dumps(st.session_state["analysis_result"], indent=2)}"""
+                answer = ask_follow_up(follow_up_question, context, model)
+                st.write(f"**Answer:** {answer}")
 
 def display_results(data: dict, lang: str, elapsed_time: float):
     """Display analysis results"""
