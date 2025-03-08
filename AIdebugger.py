@@ -122,6 +122,27 @@ def validate_response(response_text: str) -> dict:
         return {"error": f"Validation failed: {str(e)}"}
 
 # ======================
+# AI Code Generation
+# ======================
+def generate_code(prompt: str, language: str) -> str:
+    """Generate code based on a natural language prompt using the AI model."""
+    try:
+        # Create the prompt for code generation
+        gen_prompt = f"""Generate {language} code based on the following description:
+{prompt}
+
+IMPORTANT: Return ONLY the code. Do not include any explanations or additional text."""
+        
+        # Send the prompt to the model
+        response = model.generate_content(gen_prompt)
+        
+        # Return the generated code
+        return response.text
+
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# ======================
 # Auto-Detect Language
 # ======================
 def detect_language(code: str, selected_language: str) -> str:
@@ -222,6 +243,26 @@ Analysis Result:
 {json.dumps(st.session_state["analysis_result"], indent=2)}"""
                 answer = ask_follow_up(follow_up_question, context, model)
                 st.write(f"**Answer:** {answer}")
+
+    # AI Code Generation section
+    st.divider()
+    st.subheader("💡 AI Code Generation")
+
+    # Input for natural language prompt
+    code_prompt = st.text_area("📝 Enter a description of the code you want to generate:")
+
+    # Language selection for code generation
+    gen_language = st.selectbox("🌐 Select Language for Code Generation:", ["python", "javascript", "java", "cpp", "cs", "go"])
+
+    # Button to generate code
+    if st.button("🚀 Generate Code"):
+        if not code_prompt.strip():
+            st.warning("⚠️ Please enter a description to generate code.")
+        else:
+            with st.spinner("🤖 Generating code..."):
+                generated_code = generate_code(code_prompt, gen_language)
+                st.subheader("✅ Generated Code")
+                st.code(generated_code, language=gen_language)
 
 def display_results(data: dict, lang: str, elapsed_time: float):
     """Display analysis results"""
