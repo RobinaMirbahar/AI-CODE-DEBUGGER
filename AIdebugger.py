@@ -112,31 +112,35 @@ def validate_response(response_text: str) -> dict:
 # ======================
 def initialize_ai_agent():
     """Initialize the AI agent for follow-up questions"""
-    generation_config = {
-        "temperature": 1,
-        "top_p": 0.95,
-        "top_k": 40,
-        "max_output_tokens": 8192,
-        "response_mime_type": "text/plain",
-    }
+    try:
+        generation_config = {
+            "temperature": 1,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 8192,
+            "response_mime_type": "text/plain",
+        }
 
-    system_instruction = (
-        "You are an experienced software engineer specializing in debugging and optimizing code. "
-        "Your role is to analyze errors, identify root causes, and provide correct solutions based on the given environment.\n\n"
-        "Guidelines:\n"
-        "1️⃣ Accurate Diagnosis: Analyze error messages carefully and identify root causes.\n"
-        "2️⃣ System-Specific Solutions: Consider the user's OS (Windows/Linux/macOS), Python version, and dependencies.\n"
-        "3️⃣ Corrected Code Output: Provide the corrected version of the faulty code.\n"
-        "4️⃣ Step-by-Step Fixes: Explain each fix clearly, ensuring the user understands why it works.\n"
-        "5️⃣ Commands & Logs: If CLI commands are needed (e.g., pip install, kill -9 PID), format them correctly.\n"
-        "6️⃣ Verify Fix: Suggest a method to test and confirm the issue is resolved."
-    )
+        system_instruction = (
+            "You are an experienced software engineer specializing in debugging and optimizing code. "
+            "Your role is to analyze errors, identify root causes, and provide correct solutions based on the given environment.\n\n"
+            "Guidelines:\n"
+            "1️⃣ Accurate Diagnosis: Analyze error messages carefully and identify root causes.\n"
+            "2️⃣ System-Specific Solutions: Consider the user's OS (Windows/Linux/macOS), Python version, and dependencies.\n"
+            "3️⃣ Corrected Code Output: Provide the corrected version of the faulty code.\n"
+            "4️⃣ Step-by-Step Fixes: Explain each fix clearly, ensuring the user understands why it works.\n"
+            "5️⃣ Commands & Logs: If CLI commands are needed (e.g., pip install, kill -9 PID), format them correctly.\n"
+            "6️⃣ Verify Fix: Suggest a method to test and confirm the issue is resolved."
+        )
 
-    return genai.GenerativeModel(
-        model_name="gemini-1.5-pro",
-        generation_config=generation_config,
-        system_instruction=system_instruction,
-    )
+        return genai.GenerativeModel(
+            model_name="gemini-1.5-pro",
+            generation_config=generation_config,
+            system_instruction=system_instruction,
+        )
+    except Exception as e:
+        st.error(f"❌ Failed to initialize AI agent: {str(e)}")
+        st.stop()
 
 # Initialize the AI agent
 ai_agent = initialize_ai_agent()
@@ -174,11 +178,16 @@ def main():
     st.markdown("---")
     st.subheader("🤖 AI Agent: Ask Follow-Up Questions")
     user_question = st.text_input("Ask a question about your code:")
-    if user_question:
+    if user_question and user_question.strip():  # Ensure the input is not empty
         with st.spinner("🤖 Thinking..."):
-            response = chat_session.send_message(user_question)
-            st.write("**AI Response:**")
-            st.write(response.text)
+            try:
+                response = chat_session.send_message(user_question)
+                st.write("**AI Response:**")
+                st.write(response.text)
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+    else:
+        st.warning("⚠️ Please enter a valid question.")
 
 def display_results(data: dict, lang: str, elapsed_time: float):
     """Display analysis results"""
