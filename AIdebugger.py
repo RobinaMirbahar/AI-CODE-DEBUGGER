@@ -27,7 +27,7 @@ Return JSON format:
   }}
 }}
 
-IMPORTANT: Return ONLY valid JSON. Do not include any additional text or explanations outside the JSON structure.
+IMPORTANT: Return ONLY valid JSON. Use double quotes for property names and string values. Do not include any additional text or explanations outside the JSON structure.
 """
 
 # ======================
@@ -92,7 +92,9 @@ def validate_response(response_text: str) -> dict:
             return {"error": "API response is not in JSON format"}
 
         json_str = json_match.group()
-        print("Extracted JSON:", json_str)
+
+        # Replace single quotes with double quotes
+        json_str = json_str.replace("'", '"')
 
         # Parse JSON
         response_data = json.loads(json_str)
