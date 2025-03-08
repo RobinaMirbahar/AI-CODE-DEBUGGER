@@ -4,7 +4,7 @@ import google.generativeai as genai
 import json
 import re
 import time
-from pygments.lexers import guess_lexer
+from pygments.lexers import guess_lexer, PythonLexer
 
 # ======================
 # Configuration
@@ -27,7 +27,7 @@ Return JSON format:
   }}
 }}
 
-IMPORTANT: Return ONLY valid JSON. Use double quotes for property names and string values. Do not include any additional text or explanations outside the JSON structure.
+IMPORTANT: Return ONLY valid JSON. Use double quotes for property names and string values. Ensure all commas and delimiters are correctly placed. Do not include any additional text or explanations outside the JSON structure.
 """
 
 # ======================
@@ -96,6 +96,9 @@ def validate_response(response_text: str) -> dict:
         # Replace single quotes with double quotes
         json_str = json_str.replace("'", '"')
 
+        # Fix missing commas (example: add a comma before a closing brace)
+        json_str = re.sub(r'(\s*"\s*:\s*[^,]+)\s*(?=\})', r'\1,', json_str)
+
         # Parse JSON
         response_data = json.loads(json_str)
 
@@ -125,9 +128,13 @@ def detect_language(code: str, selected_language: str) -> str:
     """Detect the programming language of the code using pygments or fallback to user selection"""
     try:
         lexer = guess_lexer(code)
+        # Ensure the detected language is valid
+        if isinstance(lexer, PythonLexer):
+            return "python"
         return lexer.name.lower()
     except Exception:
-        return selected_language.lower()  # Fallback to user-selected language
+        # Fallback to user-selected language
+        return selected_language.lower()
 
 # ======================
 # AI Agent for Follow-Up Questions
