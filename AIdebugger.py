@@ -124,7 +124,7 @@ def validate_response(response_text: str) -> dict:
 # ======================
 # AI Code Generation
 # ======================
-def generate_code(prompt: str, language: str) -> str:
+def generate_code(prompt: str, language: str, model) -> str:
     """Generate code based on a natural language prompt using the AI model."""
     try:
         # Create the prompt for code generation
@@ -260,7 +260,7 @@ Analysis Result:
             st.warning("⚠️ Please enter a description to generate code.")
         else:
             with st.spinner("🤖 Generating code..."):
-                generated_code = generate_code(code_prompt, gen_language)
+                generated_code = generate_code(code_prompt, gen_language, model)  # Pass the model to generate_code
                 st.subheader("✅ Generated Code")
                 st.code(generated_code, language=gen_language)
 
