@@ -25,10 +25,7 @@ Return JSON format:
     "optimizations": [str],
     "security_fixes": [str]
   }}
-}}
-
-IMPORTANT: Return ONLY valid JSON. Use double quotes for property names and string values. Ensure all commas and delimiters are correctly placed. Do not include any additional text or explanations outside the JSON structure.
-"""
+}}"""
 
 # ======================
 # API Setup
@@ -263,6 +260,15 @@ Analysis Result:
                 generated_code = generate_code(code_prompt, gen_language, model)  # Pass the model to generate_code
                 st.subheader("✅ Generated Code")
                 st.code(generated_code, language=gen_language)
+
+    # Chatbot for general programming questions
+    st.divider()
+    st.subheader("🤖 Programming Chatbot")
+    chatbot_question = st.text_input("❓ Ask a general programming question:")
+    if chatbot_question:
+        with st.spinner("🤖 Thinking..."):
+            response = model.generate_content(chatbot_question)
+            st.write(f"**Answer:** {response.text}")
 
 def display_results(data: dict, lang: str, elapsed_time: float):
     """Display analysis results"""
