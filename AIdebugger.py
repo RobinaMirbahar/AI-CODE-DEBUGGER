@@ -136,6 +136,24 @@ def detect_language(code: str, selected_language: str) -> str:
         return selected_language.lower()
 
 # ======================
+# AI Chatbot for Follow-Up Questions
+# ======================
+def ask_follow_up(question: str, context: str, model) -> str:
+    """Ask a follow-up question to the AI chatbot"""
+    try:
+        prompt = f"""Context:
+{context}
+
+Question:
+{question}
+
+Answer the question based on the context above:"""
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# ======================
 # Streamlit Interface
 # ======================
 def main():
@@ -188,6 +206,21 @@ def main():
                 # Store the result in session state for follow-up questions
                 st.session_state["analysis_result"] = result
                 st.session_state["code_context"] = code
+
+    # Follow-Up AI Chatbot
+    if "analysis_result" in st.session_state:
+        st.divider()
+        st.subheader("🤖 Follow-Up AI Chatbot")
+        follow_up_question = st.text_input("❓ Ask a follow-up question about the code:")
+        if follow_up_question:
+            with st.spinner("🤖 Thinking..."):
+                context = f"""Code:
+{st.session_state["code_context"]}
+
+Analysis Result:
+{json.dumps(st.session_state["analysis_result"], indent=2)}"""
+                answer = ask_follow_up(follow_up_question, context, model)
+                st.write(f"**Answer:** {answer}")
 
 # ======================
 # Display Results
