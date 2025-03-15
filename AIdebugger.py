@@ -25,7 +25,9 @@ Return JSON format:
     "optimizations": [str],
     "security_fixes": [str]
   }}
-}}"""
+}}
+
+IMPORTANT: Return ONLY valid JSON. Do not include any additional text or explanations."""
 
 # ======================
 # API Setup
@@ -119,39 +121,6 @@ def validate_response(response_text: str) -> dict:
         return {"error": f"Validation failed: {str(e)}"}
 
 # ======================
-# AI Code Generation
-# ======================
-def generate_code(prompt: str, language: str, model) -> str:
-    """Generate code based on a natural language prompt using the AI model."""
-    try:
-        # Create the prompt for code generation
-        gen_prompt = f"""Generate {language} code based on the following description:
-{prompt}
-
-IMPORTANT: Return ONLY the code. Do not include any explanations or additional text."""
-        
-        # Send the prompt to the model
-        response = model.generate_content(gen_prompt)
-        
-        # Return the generated code
-        return response.text
-
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# ======================
-# AI Chatbot
-# ======================
-def ask_question(question: str, model) -> str:
-    """Ask a general programming question to the AI chatbot."""
-    try:
-        # Send the question to the model
-        response = model.generate_content(question)
-        return response.text
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# ======================
 # Streamlit Interface
 # ======================
 def main():
@@ -204,37 +173,6 @@ def main():
                 # Store the result in session state for follow-up questions
                 st.session_state["analysis_result"] = result
                 st.session_state["code_context"] = code
-
-    # AI Code Generation section
-    st.divider()
-    st.subheader("💡 AI Code Generation")
-
-    # Input for natural language prompt
-    code_prompt = st.text_area("📝 Enter a description of the code you want to generate:")
-
-    # Language selection for code generation
-    gen_language = st.selectbox("🌐 Select Language for Code Generation:", ["python", "javascript", "java", "cpp", "cs", "go"])
-
-    # Button to generate code
-    if st.button("🚀 Generate Code"):
-        if not code_prompt.strip():
-            st.warning("⚠️ Please enter a description to generate code.")
-        else:
-            with st.spinner("🤖 Generating code..."):
-                generated_code = generate_code(code_prompt, gen_language, model)  # Pass the model to generate_code
-                st.subheader("✅ Generated Code")
-                st.code(generated_code, language=gen_language)
-
-    # AI Chatbot section
-    st.divider()
-    st.subheader("🤖 AI Chatbot")
-
-    # Input for chatbot question
-    chatbot_question = st.text_input("❓ Ask a general programming question:")
-    if chatbot_question:
-        with st.spinner("🤖 Thinking..."):
-            answer = ask_question(chatbot_question, model)  # Pass the model to ask_question
-            st.write(f"**Answer:** {answer}")
 
 # ======================
 # Display Results
