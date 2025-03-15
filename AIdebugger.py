@@ -119,60 +119,6 @@ def validate_response(response_text: str) -> dict:
         return {"error": f"Validation failed: {str(e)}"}
 
 # ======================
-# AI Code Generation
-# ======================
-def generate_code(prompt: str, language: str, model) -> str:
-    """Generate code based on a natural language prompt using the AI model."""
-    try:
-        # Create the prompt for code generation
-        gen_prompt = f"""Generate {language} code based on the following description:
-{prompt}
-
-IMPORTANT: Return ONLY the code. Do not include any explanations or additional text."""
-        
-        # Send the prompt to the model
-        response = model.generate_content(gen_prompt)
-        
-        # Return the generated code
-        return response.text
-
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# ======================
-# Auto-Detect Language
-# ======================
-def detect_language(code: str, selected_language: str) -> str:
-    """Detect the programming language of the code using pygments or fallback to user selection"""
-    try:
-        lexer = guess_lexer(code)
-        # Ensure the detected language is valid
-        if isinstance(lexer, PythonLexer):
-            return "python"
-        return lexer.name.lower()
-    except Exception:
-        # Fallback to user-selected language
-        return selected_language.lower()
-
-# ======================
-# AI Agent for Follow-Up Questions
-# ======================
-def ask_follow_up(question: str, context: str, model) -> str:
-    """Ask a follow-up question to the AI agent"""
-    try:
-        prompt = f"""Context:
-{context}
-
-Question:
-{question}
-
-Answer the question based on the context above:"""
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# ======================
 # Streamlit Interface
 # ======================
 def main():
@@ -226,52 +172,16 @@ def main():
                 st.session_state["analysis_result"] = result
                 st.session_state["code_context"] = code
 
-    # Follow-up questions section
-    if "analysis_result" in st.session_state:
-        st.divider()
-        st.subheader("🤖 AI Agent: Follow-Up Questions")
-        follow_up_question = st.text_input("❓ Ask a follow-up question about the code:")
-        if follow_up_question:
-            with st.spinner("🤖 Thinking..."):
-                context = f"""Code:
-{st.session_state["code_context"]}
-
-Analysis Result:
-{json.dumps(st.session_state["analysis_result"], indent=2)}"""
-                answer = ask_follow_up(follow_up_question, context, model)
-                st.write(f"**Answer:** {answer}")
-
-    # AI Code Generation section
-    st.divider()
-    st.subheader("💡 AI Code Generation")
-
-    # Input for natural language prompt
-    code_prompt = st.text_area("📝 Enter a description of the code you want to generate:")
-
-    # Language selection for code generation
-    gen_language = st.selectbox("🌐 Select Language for Code Generation:", ["python", "javascript", "java", "cpp", "cs", "go"])
-
-    # Button to generate code
-    if st.button("🚀 Generate Code"):
-        if not code_prompt.strip():
-            st.warning("⚠️ Please enter a description to generate code.")
-        else:
-            with st.spinner("🤖 Generating code..."):
-                generated_code = generate_code(code_prompt, gen_language, model)  # Pass the model to generate_code
-                st.subheader("✅ Generated Code")
-                st.code(generated_code, language=gen_language)
-
-    # Chatbot for general programming questions
-    st.divider()
-    st.subheader("🤖 Programming Chatbot")
-    chatbot_question = st.text_input("❓ Ask a general programming question:")
-    if chatbot_question:
-        with st.spinner("🤖 Thinking..."):
-            response = model.generate_content(chatbot_question)
-            st.write(f"**Answer:** {response.text}")
-
+# ======================
+# Display Results
+# ======================
 def display_results(data: dict, lang: str, elapsed_time: float):
     """Display analysis results"""
+    # Metadata
+    st.subheader("📊 Metadata")
+    st.write(f"**Analysis Time:** {data['metadata']['analysis_time']:.2f} seconds")
+    st.write(f"**Code Complexity:** {data['metadata']['complexity'].capitalize()}")
+
     # Detailed Issues
     with st.expander("🚨 Detailed Issues"):
         st.subheader("🔴 Syntax Errors")
