@@ -121,6 +121,21 @@ def validate_response(response_text: str) -> dict:
         return {"error": f"Validation failed: {str(e)}"}
 
 # ======================
+# Auto-Detect Language
+# ======================
+def detect_language(code: str, selected_language: str) -> str:
+    """Detect the programming language of the code using pygments or fallback to user selection"""
+    try:
+        lexer = guess_lexer(code)
+        # Ensure the detected language is valid
+        if isinstance(lexer, PythonLexer):
+            return "python"
+        return lexer.name.lower()
+    except Exception:
+        # Fallback to user-selected language
+        return selected_language.lower()
+
+# ======================
 # Streamlit Interface
 # ======================
 def main():
