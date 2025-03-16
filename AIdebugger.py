@@ -58,7 +58,7 @@ def initialize_debugger():
 # ======================
 # Debugging Core
 # ======================
-def debug_code(code: str, language: str, model) -> dict:
+def debug_code(code: str, language: str, model) -> tuple:
     """Execute code analysis with proper API calls"""
     max_retries = 3
     for attempt in range(max_retries):
@@ -75,7 +75,7 @@ def debug_code(code: str, language: str, model) -> dict:
             # Try to directly parse the response as JSON
             try:
                 response_data = json.loads(response.text)
-                return response_data
+                return response_data, response  # Return both the result and the raw response
             except json.JSONDecodeError as e:
                 print(f"JSONDecodeError on attempt {attempt + 1}: {e}. Retrying...")
                 # If JSON decoding fails, try to extract the JSON part using regex as a fallback
@@ -83,15 +83,15 @@ def debug_code(code: str, language: str, model) -> dict:
                     print("Attempting to extract JSON using regex...")
                     response_data = validate_response(response.text)  # Reuse the regex function
                     if "error" not in response_data:
-                        return response_data  # Return if successful
+                        return response_data, response  # Return if successful
                 if attempt == max_retries - 1 and "error" in response_data:
-                    return response_data  # Return error on last try
+                    return response_data, response  # Return error on last try
                 continue  # Retry if possible
 
         except Exception as e:
             print(f"Attempt {attempt + 1} failed: {str(e)}")
             if attempt == max_retries - 1:
-                return {"error": f"API Error after multiple retries: {str(e)}"}
+                return {"error": f"API Error after multiple retries: {str(e)}"}, None
             time.sleep(2)  # Wait before retrying
 
 def validate_response(response_text: str) -> dict:
@@ -211,13 +211,14 @@ def main():
 
         with st.spinner("🔍 Analyzing..."):
             start = time.time()
-            result = debug_code(code, language.lower(), model)
+            result, response = debug_code(code, language.lower(), model)  # Unpack the result and response
             elapsed = time.time() - start
 
             if "error" in result:
                 st.error(f"❌ Error: {result['error']}")
-                st.write("Raw API Response for debugging:")
-                st.code(response.text)  # Display the raw response for debugging
+                if response:  # Check if response is not None
+                    st.write("Raw API Response for debugging:")
+                    st.code(response.text)  # Display the raw response for debugging
             else:
                 display_results(result, language.lower(), elapsed)
 
