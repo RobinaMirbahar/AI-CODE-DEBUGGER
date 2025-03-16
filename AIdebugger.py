@@ -58,7 +58,7 @@ def initialize_debugger():
 # ======================
 # Debugging Core
 # ======================
-def debug_code(code: str, language: str, model) -> dict:
+def debug_code(code: str, language: str, model) -> tuple:
     """Execute code analysis with proper API calls"""
     max_retries = 3
     for attempt in range(max_retries):
@@ -73,12 +73,13 @@ def debug_code(code: str, language: str, model) -> dict:
             print("Raw API Response:", response.text)
 
             # Validate and parse the response
-            return validate_response(response.text)
+            result = validate_response(response.text)
+            return result, response  # Return both the result and the raw response
 
         except Exception as e:
             print(f"Attempt {attempt + 1} failed: {str(e)}")
             if attempt == max_retries - 1:
-                return {"error": f"API Error: {str(e)}"}
+                return {"error": f"API Error: {str(e)}"}, None
             time.sleep(2)  # Wait before retrying
 
 def validate_response(response_text: str) -> dict:
@@ -198,13 +199,14 @@ def main():
 
         with st.spinner("🔍 Analyzing..."):
             start = time.time()
-            result = debug_code(code, language.lower(), model)  # Pass the model to debug_code
+            result, response = debug_code(code, language.lower(), model)  # Unpack the result and response
             elapsed = time.time() - start
 
             if "error" in result:
                 st.error(f"❌ Error: {result['error']}")
-                st.write("Raw API Response for debugging:")
-                st.code(response.text)  # Display the raw response for debugging
+                if response:  # Check if response is not None
+                    st.write("Raw API Response for debugging:")
+                    st.code(response.text)  # Display the raw response for debugging
             else:
                 display_results(result, language.lower(), elapsed)
 
