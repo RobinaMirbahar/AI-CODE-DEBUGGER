@@ -58,7 +58,7 @@ def initialize_debugger():
 # ======================
 # Debugging Core
 # ======================
-def debug_code(code: str, language: str, model) -> tuple:
+def debug_code(code: str, language: str, model) -> dict:
     """Execute code analysis with proper API calls"""
     max_retries = 3
     for attempt in range(max_retries):
@@ -72,18 +72,30 @@ def debug_code(code: str, language: str, model) -> tuple:
             # Print raw response for debugging
             print("Raw API Response:", response.text)
 
-            # Validate and parse the response
-            result = validate_response(response.text)
-            return result, response  # Return both the result and the raw response
+            # Try to directly parse the response as JSON
+            try:
+                response_data = json.loads(response.text)
+                return response_data
+            except json.JSONDecodeError as e:
+                print(f"JSONDecodeError on attempt {attempt + 1}: {e}. Retrying...")
+                # If JSON decoding fails, try to extract the JSON part using regex as a fallback
+                if attempt < max_retries - 1:  # Only retry with regex if not the last attempt
+                    print("Attempting to extract JSON using regex...")
+                    response_data = validate_response(response.text)  # Reuse the regex function
+                    if "error" not in response_data:
+                        return response_data  # Return if successful
+                if attempt == max_retries - 1 and "error" in response_data:
+                    return response_data  # Return error on last try
+                continue  # Retry if possible
 
         except Exception as e:
             print(f"Attempt {attempt + 1} failed: {str(e)}")
             if attempt == max_retries - 1:
-                return {"error": f"API Error: {str(e)}"}, None
+                return {"error": f"API Error after multiple retries: {str(e)}"}
             time.sleep(2)  # Wait before retrying
 
 def validate_response(response_text: str) -> dict:
-    """Validate and parse API response JSON"""
+    """Validate and parse API response JSON using regex as a fallback"""
     try:
         # Extract JSON from the response using regex
         json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
@@ -199,14 +211,13 @@ def main():
 
         with st.spinner("🔍 Analyzing..."):
             start = time.time()
-            result, response = debug_code(code, language.lower(), model)  # Unpack the result and response
+            result = debug_code(code, language.lower(), model)
             elapsed = time.time() - start
 
             if "error" in result:
                 st.error(f"❌ Error: {result['error']}")
-                if response:  # Check if response is not None
-                    st.write("Raw API Response for debugging:")
-                    st.code(response.text)  # Display the raw response for debugging
+                st.write("Raw API Response for debugging:")
+                st.code(response.text)  # Display the raw response for debugging
             else:
                 display_results(result, language.lower(), elapsed)
 
