@@ -95,6 +95,9 @@ def validate_response(response_text: str) -> dict:
         # Replace single quotes with double quotes
         json_str = json_str.replace("'", '"')
 
+        # Fix unquoted property names
+        json_str = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_str)
+
         # Fix missing commas (example: add a comma before a closing brace)
         json_str = re.sub(r'(\s*"\s*:\s*[^,]+)\s*(?=\})', r'\1,', json_str)
 
