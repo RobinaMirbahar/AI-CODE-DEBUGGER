@@ -58,8 +58,8 @@ def initialize_debugger():
 # ======================
 # Debugging Core
 # ======================
-def debug_code(code: str, language: str, model) -> tuple:
-    """Execute code analysis with proper API calls"""
+def debug_code(code: str, language: str, model) -> dict:
+    """Execute code analysis with proper API calls and robust JSON handling."""
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -75,27 +75,28 @@ def debug_code(code: str, language: str, model) -> tuple:
             # Try to directly parse the response as JSON
             try:
                 response_data = json.loads(response.text)
-                return response_data, response  # Return both the result and the raw response
-            except json.JSONDecodeError as e:
-                print(f"JSONDecodeError on attempt {attempt + 1}: {e}. Retrying...")
-                # If JSON decoding fails, try to extract the JSON part using regex as a fallback
-                if attempt < max_retries - 1:  # Only retry with regex if not the last attempt
-                    print("Attempting to extract JSON using regex...")
-                    response_data = validate_response(response.text)  # Reuse the regex function
-                    if "error" not in response_data:
-                        return response_data, response  # Return if successful
-                if attempt == max_retries - 1 and "error" in response_data:
-                    return response_data, response  # Return error on last try
-                continue  # Retry if possible
+                return response_data  # Return if successful
+            except json.JSONDecodeError:
+                # Fallback to regex and more robust parsing if direct parsing fails
+                response_data = validate_response(response.text)
+                if "error" not in response_data:
+                    return response_data
+                else:
+                    print(f"JSON parsing failed on attempt {attempt + 1}: {response_data['error']}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2)
+                        continue  # Retry only if JSON parsing failed
+                    else:
+                        return response_data  # Return error after all retries
 
         except Exception as e:
             print(f"Attempt {attempt + 1} failed: {str(e)}")
             if attempt == max_retries - 1:
-                return {"error": f"API Error after multiple retries: {str(e)}"}, None
-            time.sleep(2)  # Wait before retrying
+                return {"error": f"API Error: {str(e)}"}
+            time.sleep(2)
 
 def validate_response(response_text: str) -> dict:
-    """Validate and parse API response JSON using regex as a fallback"""
+    """Validate and parse API response JSON with improved error handling."""
     try:
         # Extract JSON from the response using regex
         json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
@@ -108,11 +109,10 @@ def validate_response(response_text: str) -> dict:
         # Replace single quotes with double quotes
         json_str = json_str.replace("'", '"')
 
-        # Fix unquoted property names
-        json_str = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_str)
-
-        # Fix missing commas (example: add a comma before a closing brace)
-        json_str = re.sub(r'(\s*"\s*:\s*[^,]+)\s*(?=\})', r'\1,', json_str)
+        # Remove trailing commas and other potential issues
+        json_str = re.sub(r",\s*}", "}", json_str)  # Trailing commas
+        json_str = re.sub(r",\s*]", "]", json_str)  # Trailing commas in lists
+        json_str = json_str.replace("\\", "")  # Remove backslashes that cause issues
 
         # Parse JSON
         response_data = json.loads(json_str)
@@ -131,7 +131,7 @@ def validate_response(response_text: str) -> dict:
         return response_data
 
     except json.JSONDecodeError as e:
-        print("⚠️ Invalid JSON format. Error:", e)
+        print(f"⚠️ Invalid JSON format after cleaning. Error: {e}. Problematic JSON: {json_str}")
         return {"error": f"Invalid JSON format: {str(e)}"}
     except Exception as e:
         return {"error": f"Validation failed: {str(e)}"}
@@ -211,14 +211,13 @@ def main():
 
         with st.spinner("🔍 Analyzing..."):
             start = time.time()
-            result, response = debug_code(code, language.lower(), model)  # Unpack the result and response
+            result = debug_code(code, language.lower(), model)
             elapsed = time.time() - start
 
             if "error" in result:
                 st.error(f"❌ Error: {result['error']}")
-                if response:  # Check if response is not None
-                    st.write("Raw API Response for debugging:")
-                    st.code(response.text)  # Display the raw response for debugging
+                st.write("Raw API Response for debugging:")
+                st.code(response.text)  # Display the raw response for debugging
             else:
                 display_results(result, language.lower(), elapsed)
 
@@ -245,7 +244,7 @@ Analysis Result:
 # Display Results
 # ======================
 def display_results(data: dict, lang: str, elapsed_time: float):
-    """Display analysis results"""
+    """Display analysis results, handling missing keys gracefully."""
     # Metadata
     st.subheader("📊 Metadata")
     st.write(f"**Analysis Time:** {data['metadata']['analysis_time']:.2f} seconds")
@@ -254,17 +253,17 @@ def display_results(data: dict, lang: str, elapsed_time: float):
     # Detailed Issues
     with st.expander("🚨 Detailed Issues"):
         st.subheader("🔴 Syntax Errors")
-        for err in data['issues']['syntax_errors']:
+        for err in data['issues'].get('syntax_errors', []):  # Handle missing key
             st.markdown(f"**Line {err['line']}:** {err['message']}")
             st.code(f"Fix: {err['fix']}", language=lang)
 
         st.subheader("🟠 Logical Errors")
-        for err in data['issues']['logical_errors']:
+        for err in data['issues'].get('logical_errors', []):  # Handle missing key
             st.markdown(f"**Line {err['line']}:** {err['message']}")
             st.code(f"Fix: {err['fix']}", language=lang)
 
         st.subheader("🔒 Security Issues")
-        for err in data['issues']['security_issues']:
+        for err in data['issues'].get('security_issues', []):  # Handle missing key
             st.markdown(f"**Line {err['line']}:** {err['message']}")
             st.code(f"Fix: {err['fix']}", language=lang)
 
@@ -273,13 +272,13 @@ def display_results(data: dict, lang: str, elapsed_time: float):
     st.code(data['improvements']['corrected_code'], language=lang)
 
     # Optimizations
-    if data['improvements']['optimizations']:
+    if data['improvements'].get('optimizations'):
         st.subheader("🚀 Optimizations")
         for opt in data['improvements']['optimizations']:
             st.markdown(f"- {opt}")
 
     # Security Fixes
-    if data['improvements']['security_fixes']:
+    if data['improvements'].get('security_fixes'):
         st.subheader("🔐 Security Fixes")
         for fix in data['improvements']['security_fixes']:
             st.markdown(f"- {fix}")
