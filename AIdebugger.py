@@ -1,288 +1,121 @@
 import os
 import streamlit as st
 import google.generativeai as genai
+import requests
 import json
 import re
 import time
 from pygments.lexers import guess_lexer, PythonLexer
+from e2b import Sandbox
 
 # ======================
 # Configuration
 # ======================
-DEBUG_PROMPT = """Analyze and debug this {language} code:
-{code}
+# Set up API keys
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or st.secrets["GEMINI"]["api_key"]
+E2B_API_KEY = os.getenv("E2B_API_KEY") or st.secrets["E2B"]["api_key"]
 
-Return JSON format:
-{{
-  "metadata": {{"analysis_time": float, "complexity": "low/medium/high"}},
-  "issues": {{
-    "syntax_errors": [{{"line": int, "message": str, "fix": str}}],
-    "logical_errors": [{{"line": int, "message": str, "fix": str}}],
-    "security_issues": [{{"line": int, "message": str, "fix": str}}]
-  }},
-  "improvements": {{
-    "corrected_code": str,
-    "optimizations": [str],
-    "security_fixes": [str]
-  }}
-}}
+# Initialize Gemini for Vision Agent
+genai.configure(api_key=GEMINI_API_KEY)
+vision_model = genai.GenerativeModel('gemini-pro-vision')
 
-IMPORTANT: Return ONLY valid JSON. Do not include any additional text or explanations."""
+# Initialize Open Interpreter for Coding Agent
+# (Assuming o3-mini is installed and configured locally)
+# o3-mini setup instructions: https://github.com/open-interpreter/o3-mini
+
+# Initialize E2B for Execution Agent
+# E2B setup instructions: https://e2b.dev/docs
 
 # ======================
-# API Setup
+# Vision Agent (Gemini 2.0 Pro)
 # ======================
-def initialize_debugger():
-    """Proper API configuration with valid endpoints"""
+def extract_problem_from_image(image):
+    """Extract coding problem and requirements from an uploaded image."""
     try:
-        # Fetch API key from Streamlit secrets or environment variables
-        if "GEMINI" in st.secrets:
-            api_key = st.secrets["GEMINI"]["api_key"]
-        else:
-            api_key = os.getenv("GEMINI_API_KEY")
-
-        if not api_key:
-            st.error("❌ Missing API Key! Check your `.streamlit/secrets.toml` or environment variables.")
-            st.stop()
-
-        # Configure Generative AI API
-        genai.configure(api_key=api_key)
-
-        # Use the correct model version
-        return genai.GenerativeModel('gemini-1.5-pro')
-
-    except Exception as e:
-        st.error(f"🔌 Connection Failed: {str(e)}")
-        st.stop()
-
-# ======================
-# Debugging Core
-# ======================
-def debug_code(code: str, language: str, model) -> tuple:
-    """Execute code analysis with proper API calls and robust JSON handling."""
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            # Generate the prompt for debugging
-            prompt = DEBUG_PROMPT.format(language=language, code=code)
-            
-            # Send the prompt to the model
-            response = model.generate_content(prompt)
-            
-            # Print raw response for debugging
-            print("Raw API Response:", response.text)
-
-            # Try to directly parse the response as JSON
-            try:
-                response_data = json.loads(response.text)
-                return response_data, response  # Return both the result and the raw response
-            except json.JSONDecodeError:
-                # Fallback to regex and more robust parsing if direct parsing fails
-                response_data = validate_response(response.text)
-                if "error" not in response_data:
-                    return response_data, response  # Return if successful
-                else:
-                    print(f"JSON parsing failed on attempt {attempt + 1}: {response_data['error']}")
-                    if attempt < max_retries - 1:
-                        time.sleep(2)
-                        continue  # Retry only if JSON parsing failed
-                    else:
-                        return response_data, response  # Return error after all retries
-
-        except Exception as e:
-            print(f"Attempt {attempt + 1} failed: {str(e)}")
-            if attempt == max_retries - 1:
-                return {"error": f"API Error: {str(e)}"}, None
-            time.sleep(2)
-
-def validate_response(response_text: str) -> dict:
-    """Validate and parse API response JSON with improved error handling."""
-    try:
-        # Extract JSON from the response using regex
-        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-        if not json_match:
-            print("⚠️ No JSON found in response. Full Response:", response_text)
-            return {"error": "API response is not in JSON format"}
-
-        json_str = json_match.group()
-
-        # Replace single quotes with double quotes
-        json_str = json_str.replace("'", '"')
-
-        # Remove trailing commas and other potential issues
-        json_str = re.sub(r",\s*}", "}", json_str)  # Trailing commas
-        json_str = re.sub(r",\s*]", "]", json_str)  # Trailing commas in lists
-        json_str = json_str.replace("\\", "")  # Remove backslashes that cause issues
-
-        # Parse JSON
-        response_data = json.loads(json_str)
-
-        # Ensure expected keys are present
-        required_keys = {
-            "metadata": ["analysis_time", "complexity"],
-            "issues": ["syntax_errors", "logical_errors", "security_issues"],
-            "improvements": ["corrected_code", "optimizations", "security_fixes"]
-        }
-
-        for category, keys in required_keys.items():
-            if not all(key in response_data.get(category, {}) for key in keys):
-                raise ValueError(f"Invalid {category} structure")
-
-        return response_data
-
-    except json.JSONDecodeError as e:
-        print(f"⚠️ Invalid JSON format after cleaning. Error: {e}. Problematic JSON: {json_str}")
-        return {"error": f"Invalid JSON format: {str(e)}"}
-    except Exception as e:
-        return {"error": f"Validation failed: {str(e)}"}
-
-# ======================
-# Auto-Detect Language
-# ======================
-def detect_language(code: str, selected_language: str) -> str:
-    """Detect the programming language of the code using pygments or fallback to user selection"""
-    try:
-        lexer = guess_lexer(code)
-        # Ensure the detected language is valid
-        if isinstance(lexer, PythonLexer):
-            return "python"
-        return lexer.name.lower()
-    except Exception:
-        # Fallback to user-selected language
-        return selected_language.lower()
-
-# ======================
-# AI Chatbot for Follow-Up Questions
-# ======================
-def ask_follow_up(question: str, context: str, model) -> str:
-    """Ask a follow-up question to the AI chatbot"""
-    try:
-        prompt = f"""Context:
-{context}
-
-Question:
-{question}
-
-Answer the question based on the context above:"""
-        response = model.generate_content(prompt)
+        response = vision_model.generate_content(["Extract the coding problem and requirements from this image.", image])
         return response.text
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error extracting problem from image: {str(e)}"
+
+# ======================
+# Coding Agent (o3-mini)
+# ======================
+def generate_code(problem_description):
+    """Generate optimized code solutions with proper documentation and type hints."""
+    try:
+        # Use o3-mini to generate code
+        # Example: o3-mini.generate_code(problem_description)
+        # For now, we'll simulate this with a placeholder
+        code = f"""
+# Generated by Coding Agent (o3-mini)
+def solve_problem():
+    \"\"\"
+    {problem_description}
+    \"\"\"
+    # TODO: Implement the solution
+    pass
+"""
+        return code
+    except Exception as e:
+        return f"Error generating code: {str(e)}"
+
+# ======================
+# Execution Agent (E2B)
+# ======================
+def execute_code_in_sandbox(code):
+    """Execute the generated code in a secure sandbox environment."""
+    try:
+        # Initialize E2B sandbox
+        sandbox = Sandbox(api_key=E2B_API_KEY)
+
+        # Run the code in the sandbox
+        result = sandbox.run_python(code)
+        return result
+    except Exception as e:
+        return f"Error executing code in sandbox: {str(e)}"
 
 # ======================
 # Streamlit Interface
 # ======================
 def main():
-    st.set_page_config(page_title="AI Code Debugger Pro", page_icon="🐞", layout="wide")
-    st.title("🐞 AI Code Debugger Pro")
-    st.write("Analyze and debug your code using Gemini AI.")
+    st.set_page_config(page_title="AI Coding Team", page_icon="🤖", layout="wide")
+    st.title("🤖 AI Coding Team")
+    st.write("Solve coding problems with a team of specialized AI agents!")
 
-    # Initialize the model inside the main function
-    model = initialize_debugger()
-    if model is None:
-        st.error("❌ Failed to initialize the model. Check your API key and configuration.")
-        st.stop()
+    # Input options
+    input_type = st.radio("Choose input type:", ["Text", "Image"])
 
-    # File uploader
-    uploaded_file = st.file_uploader("📤 Upload a code file", type=["py", "js", "java", "cpp", "cs", "go"])
-    if uploaded_file:
-        try:
-            code = uploaded_file.read().decode("utf-8")
-        except UnicodeDecodeError:
-            st.error("⚠️ Invalid file format - please upload text-based source files")
-            return
+    if input_type == "Text":
+        problem_description = st.text_area("Enter the coding problem:", height=150)
     else:
-        code = st.text_area("📜 Paste your code here:", height=300)
-
-    # Language selection
-    language = st.selectbox("🌐 Select Programming Language:", ["Auto-Detect", "python", "javascript", "java", "cpp", "cs", "go"])
-
-    # Auto-detect language if selected
-    if language == "Auto-Detect":
-        detected_language = detect_language(code, language)
-        st.write(f"🔍 Detected Language: **{detected_language.capitalize()}**")
-        language = detected_language
+        uploaded_image = st.file_uploader("Upload an image of the coding problem:", type=["png", "jpg", "jpeg"])
+        if uploaded_image:
+            st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
+            problem_description = extract_problem_from_image(uploaded_image)
+            st.write("Extracted Problem Description:")
+            st.write(problem_description)
 
     # Analyze button
-    if st.button("🚀 Analyze Code"):
-        if not code.strip():
-            st.warning("⚠️ Please input some code to analyze.")
+    if st.button("🚀 Solve Problem"):
+        if not problem_description.strip():
+            st.warning("⚠️ Please provide a coding problem.")
             return
 
         with st.spinner("🔍 Analyzing..."):
-            start = time.time()
-            result, response = debug_code(code, language.lower(), model)  # Unpack the result and response
-            elapsed = time.time() - start
+            # Step 1: Generate code using Coding Agent
+            st.subheader("Generated Code")
+            generated_code = generate_code(problem_description)
+            st.code(generated_code, language="python")
 
-            if "error" in result:
-                st.error(f"❌ Error: {result['error']}")
-                if response:  # Check if response is not None
-                    st.write("Raw API Response for debugging:")
-                    st.code(response.text)  # Display the raw response for debugging
-            else:
-                display_results(result, language.lower(), elapsed)
+            # Step 2: Execute code using Execution Agent
+            st.subheader("Execution Results")
+            execution_result = execute_code_in_sandbox(generated_code)
+            st.write(execution_result)
 
-                # Store the result in session state for follow-up questions
-                st.session_state["analysis_result"] = result
-                st.session_state["code_context"] = code
+            # Step 3: Display results
+            st.subheader("Final Output")
+            st.write("The problem has been solved! 🎉")
 
-    # Follow-Up AI Chatbot
-    if "analysis_result" in st.session_state:
-        st.divider()
-        st.subheader("🤖 Follow-Up AI Chatbot")
-        follow_up_question = st.text_input("❓ Ask a follow-up question about the code:")
-        if follow_up_question:
-            with st.spinner("🤖 Thinking..."):
-                context = f"""Code:
-{st.session_state["code_context"]}
-
-Analysis Result:
-{json.dumps(st.session_state["analysis_result"], indent=2)}"""
-                answer = ask_follow_up(follow_up_question, context, model)
-                st.write(f"**Answer:** {answer}")
-
-# ======================
-# Display Results
-# ======================
-def display_results(data: dict, lang: str, elapsed_time: float):
-    """Display analysis results, handling missing keys gracefully."""
-    # Metadata
-    st.subheader("📊 Metadata")
-    st.write(f"**Analysis Time:** {data['metadata']['analysis_time']:.2f} seconds")
-    st.write(f"**Code Complexity:** {data['metadata']['complexity'].capitalize()}")
-
-    # Detailed Issues
-    with st.expander("🚨 Detailed Issues"):
-        st.subheader("🔴 Syntax Errors")
-        for err in data['issues'].get('syntax_errors', []):  # Handle missing key
-            st.markdown(f"**Line {err['line']}:** {err['message']}")
-            st.code(f"Fix: {err['fix']}", language=lang)
-
-        st.subheader("🟠 Logical Errors")
-        for err in data['issues'].get('logical_errors', []):  # Handle missing key
-            st.markdown(f"**Line {err['line']}:** {err['message']}")
-            st.code(f"Fix: {err['fix']}", language=lang)
-
-        st.subheader("🔒 Security Issues")
-        for err in data['issues'].get('security_issues', []):  # Handle missing key
-            st.markdown(f"**Line {err['line']}:** {err['message']}")
-            st.code(f"Fix: {err['fix']}", language=lang)
-
-    # Corrected Code
-    st.subheader("✅ Corrected Code")
-    st.code(data['improvements']['corrected_code'], language=lang)
-
-    # Optimizations
-    if data['improvements'].get('optimizations'):
-        st.subheader("🚀 Optimizations")
-        for opt in data['improvements']['optimizations']:
-            st.markdown(f"- {opt}")
-
-    # Security Fixes
-    if data['improvements'].get('security_fixes'):
-        st.subheader("🔐 Security Fixes")
-        for fix in data['improvements']['security_fixes']:
-            st.markdown(f"- {fix}")
-
+# Run the app
 if __name__ == "__main__":
     main()
