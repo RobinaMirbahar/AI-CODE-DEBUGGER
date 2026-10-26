@@ -134,17 +134,3 @@ AI Code Debugger Pro, powered by **Google Gemini 2.0 Pro**, is a **game-changer 
 <div align="center">
   <img src="https://raw.githubusercontent.com/RobinaMirbahar/RobinaMirbahar/main/ProfileImages/GithubBanner.svg" alt="Robina Mirbahar Banner" width="100%" />
 </div>
-
----
-
-## Star, Fork & Sponsor This Project
-
-[![Star on GitHub](https://img.shields.io/github/stars/RobinaMirbahar/AI-CODE-DEBUGGER?style=for-the-badge&logo=github&label=Star)](https://github.com/RobinaMirbahar/AI-CODE-DEBUGGER)
-[![Fork on GitHub](https://img.shields.io/github/forks/RobinaMirbahar/AI-CODE-DEBUGGER?style=for-the-badge&logo=github&label=Fork)](https://github.com/RobinaMirbahar/AI-CODE-DEBUGGER/fork)
-[![Sponsor RobinaMirbahar](https://img.shields.io/badge/Sponsor-%40RobinaMirbahar-ea4aaa?style=for-the-badge&logo=githubsponsors)](https://github.com/sponsors/RobinaMirbahar)
-
-If this project is helpful to your work:
-* **Star this Repository:** [**Star `RobinaMirbahar/AI-CODE-DEBUGGER` on GitHub**](https://github.com/RobinaMirbahar/AI-CODE-DEBUGGER) to bookmark it and help others discover it.
-* **Fork & Customize:** [**Fork `RobinaMirbahar/AI-CODE-DEBUGGER`**](https://github.com/RobinaMirbahar/AI-CODE-DEBUGGER/fork) to build and experiment with your own workflows.
-* **Sponsor on GitHub:** [**Sponsor `@RobinaMirbahar` on GitHub Sponsors (`github.com/sponsors/RobinaMirbahar`)**](https://github.com/sponsors/RobinaMirbahar) to support future open-source [**Google (`@google`)**](https://github.com/google), [**Google Gemini (`@google-gemini`)**](https://github.com/google-gemini), [**Google DeepMind (`@google-deepmind`)**](https://github.com/google-deepmind), and [**Google Cloud (`@GoogleCloudPlatform`)**](https://github.com/GoogleCloudPlatform) cookbooks!
-
