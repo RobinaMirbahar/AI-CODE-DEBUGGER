@@ -1,6 +1,48 @@
 # 🚀 AI Code Debugger Pro – AI-Powered Code Analysis & Generation  
 
-![AI Code Debugger](https://img.shields.io/badge/Made_with-Google_Gemini_2.0_Pro-blue?style=flat-square&logo=googlecloud)  
+![AI Code Debugger](https://img.shields.io/badge/Made_with-Google_Gemini_2.0_Pro-blue?style=flat-square&logo=googlecloud)
+
+> **Author & Architect:** [Robina Mirbahar](https://github.com/RobinaMirbahar) (Google Developer Expert in Cloud & AI)  
+> **Focus:** Automated Static Analysis, Bug Root-Cause Detection, Complexity Optimization & Unit Test Generation with Google Gemini
+
+---
+
+## 🎯 Why I Built AI Code Debugger Pro (Engineering Purpose & Real-World Value)
+
+### 1. 🐞 Eliminating Manual Stack-Trace Hunting
+I built AI Code Debugger Pro to turn cryptic compiler errors, race conditions, and runtime stack traces into structured root-cause explanations with drop-in patched code.
+
+### 2. ⚡ Time & Space Complexity Refactoring
+Beyond fixing syntax bugs, I designed the analyzer to detect $O(n^2)$ bottlenecks, memory leaks, and anti-patterns, rewriting them into idiomatic, high-performance implementations.
+
+### 3. 🔒 Built-In Security & Unit Test Synthesis
+Every debugging pass automatically checks for injection flaws and generates edge-case unit tests so fixed bugs never regress.
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+flowchart TD
+    subgraph Input ["1. Developer Source & Error Context"]
+        I_Code["Source Code Snippet / File"]
+        I_Err["Stack Trace & Compiler Diagnostics"]
+    end
+    subgraph Engine ["2. Gemini Static & Runtime Analyzer"]
+        E_AST["Syntax & Control-Flow Inspection"]
+        E_Sec["OWASP Security & Edge-Case Audit"]
+        E_Opt["Big-O Complexity Optimizer"]
+    end
+    subgraph Output ["3. Actionable Repair Artifacts"]
+        O_Patch["Patched Drop-In Code Diff"]
+        O_Test["Generated Regression Unit Tests"]
+    end
+    I_Code & I_Err --> E_AST --> E_Sec --> E_Opt
+    E_Opt --> O_Patch & O_Test
+```
+
+---
+
 **AI Code Debugger Pro** is an AI-powered tool designed to assist developers in **debugging, optimizing, and generating** code with **Google Gemini 2.0 Pro**. Whether you need to fix errors, improve performance, or generate code snippets, this interactive tool streamlines the process in a user-friendly interface.  
 
 🔗 **Live Demo:** [AI Code Debugger Pro](https://ai-code-debuggeer.streamlit.app//)  
@@ -134,3 +176,22 @@ AI Code Debugger Pro, powered by **Google Gemini 2.0 Pro**, is a **game-changer 
 <div align="center">
   <img src="https://raw.githubusercontent.com/RobinaMirbahar/RobinaMirbahar/main/ProfileImages/GithubBanner.svg" alt="Robina Mirbahar Banner" width="100%" />
 </div>
+
+<!-- AUTHOR_SIGNATURE_START -->
+---
+
+## 👩‍💻 About the Author
+
+**Robina Mirbahar — Google Cloud & AI Architect**  
+*Google Developer Expert (GDE) in Cloud & AI • Published Author • Multi-Agent Systems & Serverless GPU Builder*
+
+[![GitHub](https://img.shields.io/badge/GitHub-RobinaMirbahar-181717?style=for-the-badge&logo=github)](https://github.com/RobinaMirbahar)
+[![Medium](https://img.shields.io/badge/Medium-@robinamirbahar-000000?style=for-the-badge&logo=medium)](https://medium.com/@robinamirbahar)
+[![DEV.to](https://img.shields.io/badge/DEV.to-robinamirbahar-0A0A0A?style=for-the-badge&logo=devdotto)](https://dev.to/robinamirbahar)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Robina_Mirbahar-0A66C2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/robina-mirbahar)
+[![GDE Profile](https://img.shields.io/badge/Google_Developer_Expert-Profile-4285F4?style=for-the-badge&logo=google)](https://g.dev/RobinaMirbahar)
+[![YouTube](https://img.shields.io/badge/YouTube-@RobinaMirbahar-FF0000?style=for-the-badge&logo=youtube)](https://www.youtube.com/@RobinaMirbahar)
+[![X](https://img.shields.io/badge/X-@RobinaMirbahar-000000?style=for-the-badge&logo=x)](https://x.com/RobinaMirbahar)
+[![Amazon Author](https://img.shields.io/badge/Amazon_Book-Cloud_Computing_Voyage-FF9900?style=for-the-badge&logo=amazon)](https://www.amazon.com/dp/B0D146249R)
+
+<!-- AUTHOR_SIGNATURE_END -->
