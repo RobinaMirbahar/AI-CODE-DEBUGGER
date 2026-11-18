@@ -3,7 +3,8 @@
 ![AI Code Debugger](https://img.shields.io/badge/Made_with-Google_Gemini_2.0_Pro-blue?style=flat-square&logo=googlecloud)
 
 > **Author & Architect:** [Robina Mirbahar](https://github.com/RobinaMirbahar) ([Google Developer Expert in Cloud & AI](https://developers.google.com/profile/u/106918534005910641104?utm_campaign=deveco_gdemembers&utm_source=deveco) · Google Cloud Champion Innovator · Co-Author of [*AI Engineering*](https://www.amazon.com/dp/B0GWCZWCF4))  
-> **Focus:** Automated Static Analysis, Bug Root-Cause Detection, Complexity Optimization & Unit Test Generation with Google Gemini
+> 📚 **Architecture Track:** Automated Static Analysis, Root-Cause Bug Detection & Unit Test Synthesis  
+> **Core Stack:** [Google Gemini API](https://ai.google.dev/gemini-api/docs?utm_campaign=deveco_gdemembers&utm_source=deveco), [Google AI Studio](https://aistudio.google.com/?utm_campaign=deveco_gdemembers&utm_source=deveco), Python AST Diagnostics, and Automated Patch Generation.
 
 ---
 
