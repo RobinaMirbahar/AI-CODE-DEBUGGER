@@ -39,16 +39,6 @@ flowchart TD
     end
     I_Code & I_Err --> E_AST --> E_Sec --> E_Opt
     E_Opt --> O_Patch & O_Test
-    style Input fill:#fce7f3,stroke:#db2777,stroke-width:2px,color:#831843
-    style I_Code fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e3a8a
-    style I_Err fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#14532d
-    style Engine fill:#f3e8ff,stroke:#9333ea,stroke-width:2px,color:#581c87
-    style E_AST fill:#fce7f3,stroke:#db2777,stroke-width:2px,color:#831843
-    style E_Sec fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e3a8a
-    style E_Opt fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#14532d
-    style Output fill:#f3e8ff,stroke:#9333ea,stroke-width:2px,color:#581c87
-    style O_Patch fill:#fce7f3,stroke:#db2777,stroke-width:2px,color:#831843
-    style O_Test fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e3a8a
 ```
 
 ---
